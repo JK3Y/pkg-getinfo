@@ -1,6 +1,6 @@
 {
   "name": "pkg-getinfo",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A Node.js module that obtains useful metadata from Playstation PKG URLs",
   "main": "index.js",
   "scripts": {
@@ -10,10 +10,7 @@
   "author": "JK3Y",
   "license": "ISC",
   "dependencies": {
-    "binary": "https://github.com/JK3Y/node-binary.git",
-    "node-fetch": "^2.2.0",
-    "range": "^0.0.3",
-    "valid-url": "^1.0.9"
+    "node-fetch": "^2.2.0"
   },
   "devDependencies": {}
 }

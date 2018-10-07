@@ -1,272 +1,289 @@
-// let gi = require('./src/getinfo.js')
-//
-// gi.getinfo()
-
 const fetch = require('node-fetch');
 const Headers = fetch.Headers;
-const binary = require('binary')
-
-const range = require('range').range
 
 /**
  * Getinfo Function
  *
  * @param {string} url Absolute url to pkg
+ * @param {function} cb Callback function
  * @return void
  */
-exports.getinfo = (url) => {
-    // let url = "http://zeus.dl.playstation.net/cdn/UP9000/PCSA00001_00/eMylfKGUWSacpFJvIunKkOGpgWquRbkHqLWcmOYGwNNkBwOUOnybfIUNNKgsnWliuAEopLbxEHCtkNgAvbstqnMOdxlvvQTFbOKnC.pkg"
-
-    // let url = 'http://zeus.dl.playstation.net/cdn/UP0001/NPUB30162_00/bG751I62Aych0U2E7hsxD5vKS28NurYg8CmJln6oQV4LUDAfXGSOyQHE45reFxIuwD5Qjo1xnQleHqulmmx9HmjNnXX8P5O5jcXlD.pkg'
+exports.getinfo = (url, cb) => {
+    let data = {
+        type: null,
+        title_id: null,
+        region: null,
+        content_id: null,
+        size: 0,
+        name: null,
+        requiredFw: -1,
+        appVersion: -1,
+    };
 
     requestData(url)
         .then(getHeader)
         .then(parseSFO)
-        .then(function(data) {
-            console.log(data)
+        .then(function(sfoData) {
+            data.type = sfoData.pkg_type
+            data.title_id = sfoData.title_id
+            data.region = getRegion(sfoData.content_id.charAt(0))
+            data.content_id = sfoData.content_id
+            data.size = humanFileSize(sfoData.total_size, true)
+            data.name = sfoData.title
+            data.requiredFw = sfoData.min_ver
+            data.appVersion = sfoData.app_ver
+            data.pkg_psxtitleid = sfoData.pkg_psxtitleid
+
+
+            cb(data)
         })
-}
+};
 
 function requestData(url) {
-    const headers = new Headers({
-        'Range': 'bytes=0-10000'
-    })
-
     const opts = {
-        headers: headers
-    }
-
+        headers: new Headers({
+            'Range': 'bytes=0-10000'
+        })
+    };
     return fetch(url, opts)
         .then(res => res.buffer())
+}
+
+// http://www.psdevwiki.com/ps3/PKG_files#File_Header_2
+function getHeader(dataBuffer) {
+    let drm_type,
+        type_0A,
+        type_0B,
+        pkg_type,
+        pkg_psxtitleid,
+        content_id,
+        content_type = 0,
+        sfo_offset = 0,
+        sfo_size = 0;
+
+    let magic = dataBuffer.slice(0, 4);
+
+    if (magic.readInt32BE(0) !== 0x7F504B47) return;
+
+    // Read offset where meta data begins
+    let meta_offset = dataBuffer.slice(8, 8 + 4);
+
+    // Read number of meta data elements
+    let meta_count = dataBuffer.slice(12, 12 + 4);
+
+    // Read total PKG size from header
+    let total_size = dataBuffer.slice(24, 24 + 8).readInt32BE(4);
+
+    content_id = dataBuffer.slice(48, 48 + 36);
+
+    let offset = meta_offset.readInt32BE(0);
+
+    for (let i = 0; i <= meta_count.readInt32BE(0); i++) {
+        ctype = dataBuffer.slice(offset, offset + 4);
+        size = dataBuffer.slice(offset + 4, offset + 8);
+
+        // DRM type element found
+        if (ctype.readInt32BE(0) === 0x1) {
+            drm_type = dataBuffer.slice(offset + 8, offset + 12)
+        }
+
+        // Content type element found
+        if (ctype.readInt32BE(0) === 0x2) {
+            content_type = dataBuffer.slice(offset + 8, offset + 12)
+        }
+
+        // Install directory element found (PSP, PS3)
+        if (ctype.readInt32BE(0) === 0xA) {
+            type_0A = true
+        }
+
+        // Unknown element found; seen in PSP cumulative patch
+        if (ctype.readInt32BE(0) === 0xB) {
+            type_0B = true
+        }
+
+        // PARAM.SFO offset and size element found
+        if (ctype.readInt32BE(0) === 0xE) {
+            sfo_offset = dataBuffer.slice(offset + 8, offset + 12);
+            sfo_size = dataBuffer.slice(offset + 12, offset + 16)
+        }
+
+        offset += (2 * 4 + size.readInt32BE(0))
+    }
+
+
+    if ((content_type.readInt32BE() === 0x1) ||
+        (content_type.readInt32BE() === 0x6)) {
+        pkg_type = 'PSX GAME';
+        if (content_type.readInt32BE() === 0x6) {
+            pkg_psxtitleid = dataBuffer.slice(712, 721).toString()
+        }
+    }
+    else if ((content_type.readInt32BE() === 0x4) ||
+        (content_type.readInt32BE() === 0xB)) {
+        if (type_0B) {
+            pkg_type = 'PS3 UPDATE'
+        } else {
+            pkg_type = 'PS3 DLC'
+        }
+    }
+    else if (content_type.readInt32BE() === 0x5) {
+        pkg_type = 'PS3 GAME'
+    }
+    else if (content_type.readInt32BE() === 0x7) {
+        if (type_0B) {
+            pkg_type = 'PSP DLC'
+        } else {
+            pkg_type = 'PSP GAME'
+        }
+    }
+    else if (content_type.readInt32BE() === 0x9) {
+        pkg_type = 'PSP or PS3 THEME'
+    }
+    else if (content_type.readInt32BE() === 0xD) {
+        pkg_type = 'PS3 AVATAR'
+    }
+    else if (content_type.readInt32BE() === 0x15) {
+        pkg_type = 'VITA APP'
+    }
+    else if (content_type.readInt32BE() === 0x16) {
+        pkg_type = 'VITA DLC'
+    }
+    else if (content_type.readInt32BE() === 0x1F) {
+        pkg_type = 'VITA THEME'
+    }
+    else if (content_type.readInt32BE() === 0x18) {
+        pkg_type = 'PSM GAME'
+    }
+
+    return {
+        drm_type: drm_type,
+        type_0A: type_0A,
+        type_0B: type_0B,
+        pkg_type: pkg_type,
+        pkg_psxtitleid: pkg_psxtitleid,
+        content_id: content_id,
+        content_type: content_type,
+        sfo_offset: sfo_offset,
+        sfo_size: sfo_size,
+        total_size: total_size,
+        sfo: dataBuffer.slice(sfo_offset.readInt32BE(), sfo_offset.readInt32BE() + sfo_size.readInt32BE())
+    }
+}
+
+
+function parseSFO(header) {
+    let sfo = header.sfo;
+
+    if (header.sfo_offset <= 0) return header;
+
+    // Check MAGIC '\0PSF' to verify proper SFO file
+    if (sfo.slice(0, 4).readInt32BE(0) !== 0x00505346) return header;
+
+    let sfo_key_table_start = sfo.readInt32LE(0x08)
+    let sfo_data_table_start = sfo.readInt32LE(0x0C)
+    let sfo_tables_entries = sfo.readInt32LE(0x10)
+
+    for (let i = 0; i < sfo_tables_entries; i++) {
+        let sfo_index_entry_ofs = 0x14 + i * 0x10
+        let sfo_index_key_ofs = sfo_key_table_start + sfo.readInt16LE(sfo_index_entry_ofs + 0x00)
+
+        let sfo_index_key = ''
+
+        let arr = sfo.slice(sfo_index_key_ofs).toString()
+
+        for (chr in arr) {
+            if (arr.charAt(chr) === '\u0000') break;
+            sfo_index_key += arr.charAt(chr)
+        }
+
+        let sfo_index_keyname = sfo_index_key.toString()
+        let sfo_index_data_ofs = sfo_data_table_start + sfo.readInt32LE(sfo_index_entry_ofs + 0x0C)
+        let sfo_index_data_fmt = sfo.readInt16LE(sfo_index_entry_ofs + 0x02)
+        let sfo_index_data_len = sfo.readInt32LE(sfo_index_entry_ofs + 0x04)
+        let sfo_index_data = sfo.slice(sfo_index_data_ofs, sfo_index_data_ofs + sfo_index_data_len)
+
+        let value
+
+        if ((sfo_index_data_fmt === 0x0004) ||
+            (sfo_index_data_fmt === 0x0204)) {
+            if (sfo_index_data_fmt === 0x0204) {
+                for (let j = 0; j < sfo_index_data_len; j++) {
+                    if (sfo_index_data.toString().charAt(j) === '\u0000') {
+                        sfo_index_data = sfo_index_data.slice(0, j)
+                        break;
+                    }
+
+                }
+            }
+            value = sfo_index_data.toString()
+        }
+        else if (sfo_index_data_fmt === 0x0404) {
+            value = sfo_index_data.readInt32LE(0x00)
+        }
+
+        if (sfo_index_keyname === 'TITLE') {
+            header.title = value
+        }
+        else if (sfo_index_keyname === 'CONTENT_ID') {
+            header.content_id = value
+        }
+        else if (sfo_index_keyname === 'TITLE_ID') {
+            header.title_id = value
+        }
+        else if (sfo_index_keyname === 'PSP2_DISP_VER') {
+            header.min_ver = parseFloat(value)
+        }
+        else if (sfo_index_keyname === 'CATEGORY') {
+            header.category = value
+        }
+        else if (sfo_index_keyname === 'APP_VER') {
+            header.app_ver = parseFloat(value)
+        }
+        else if (sfo_index_keyname === 'PUBTOOLINFO') {
+            try {
+                header.sdk_ver = value.slice(24, 32) / 1000000
+                header.c_date = value.slice(7, 15)
+            } catch (err) {
+                console.log(err)
+            }
+        }
+    }
+
+    return header
 }
 
 function getRegion(id) {
     switch(id) {
         case 'U':
-            return 'US'
+            return 'US';
         case 'E':
-            return 'EU'
+            return 'EU';
         case 'J':
-            return 'JP'
+            return 'JP';
         case 'K':
-            return 'ASIA(KOR)'
+            return 'ASIA(KOR)';
         case 'H':
-            return 'ASIA(HKG)'
+            return 'ASIA(HKG)';
         case 'I':
-            return 'INT'
+            return 'INT';
         default:
             return '???'
     }
 }
 
-
-
-function parseSFO(header) {
-    let sfo = header.sfo
-
-    let parsedSFO = {
-        total_size: header.total_size,
-        content_id: '',
-        drm_type: header.drm_type,
-        content_type: header.content_type,
-        type_0A: typeof header.type_0A === 'boolean',
-        type_0B: typeof header.type_0B === 'boolean',
-        type: "UNKNOWN",
-        psx_title_id: "",
-        title_id: "",
-        title: "",
-        region: "",
-        min_ver: -0.01,
-        category: "",
-        app_ver: -0.01,
-        sdk_ver: -0.01,
-        c_date: ""
+function humanFileSize(bytes, si) {
+    var thresh = si ? 1000 : 1024;
+    if(Math.abs(bytes) < thresh) {
+        return bytes + ' B';
     }
-    parsedSFO.title_id = header.title_id
-    parsedSFO.file_size = header.total_size
-    setContentType(header.content_type)
-
-    let b = binary(sfo)
-        .word32bu('magic')
-        .buffer('version', 4)
-        .word32lu('key_table_start')
-        .word32lu('data_table_start')
-        .word32lu('tables_entries')
-
-        .loop(function(endSeg, vars) {
-            for (var i in range(vars.tables_entries)) {
-                let index_entry_offset = 0x14 + i * 0x10
-                let index_key_offset = vars.key_table_start + Buffer.from(sfo).readUInt16LE(index_entry_offset + 0x00)
-
-                let index_data_offset = vars.data_table_start + Buffer.from(sfo).readUInt32LE(index_entry_offset + 0x0c)
-                let index_data_fmt = Buffer.from(sfo).readUInt16LE(index_entry_offset + 0x02)
-                let index_data_len = Buffer.from(sfo).readUInt32LE(index_entry_offset + 0x04)
-
-                let index_data = sfo.slice(index_data_offset, index_data_offset + index_data_len)
-
-                let arrslice = this.getSlice(index_key_offset, 0x11).toString()
-
-                let key = ''
-                var value = null
-
-                for (var j = 0; j < arrslice.length; j++) {
-                    if (arrslice.charAt(j) === '\u0000') {
-                        break
-                    }
-                    key += arrslice.charAt(j)
-                }
-
-                if (index_data_fmt === 0x0004 || index_data_fmt === 0x0204) {
-                    if (index_data_fmt === 0x0204) {
-                        for (var k = 0; k < index_data_len; k++) {
-                            if (index_data[k] === 0) {
-                                index_data = index_data.slice(0, k)
-                                break
-                            }
-                        }
-                    }
-                    value = index_data.toString()
-                }
-                else if (index_data_fmt === 0x0404) {
-                    value = index_data.readUInt32LE(0)
-                }
-
-                switch(key) {
-                    case 'TITLE':
-                        parsedSFO.title = value
-                        break;
-                    case 'TITLE_ID':
-                        parsedSFO.title_id = value
-                        break;
-                    case 'CONTENT_ID':
-                        parsedSFO.content_id = value
-                        parsedSFO.region = getRegion(value.slice(0,1))
-                        break;
-                    case 'PSP2_DISP_VER':
-                        parsedSFO.min_ver = value
-                        break;
-                    case 'CATEGORY':
-                        parsedSFO.category = value
-                        break;
-                    case 'APP_VER':
-                        parsedSFO.app_ver = value
-                        break;
-                    case 'PUBTOOLINFO':
-                        try {
-                            parsedSFO.sdk_ver = value.slice(24, 32) / 1000000
-                            parsedSFO.c_date = value.slice(7, 15)
-                        } catch(error) {
-                            console.error(error)
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            endSeg()
-        })
-        .vars
-
-
-    function setContentType(id) {
-        switch(id) {
-            case 0x1 || 0x6:
-                if (id === 0x6) {
-                    parsedSFO.psx_title_id = header.slice(712, 721).toString()
-                }
-                parsedSFO.type = 'PSX GAME'
-                break
-            case 0x4 || 0xB:
-                if (parsedSFO.type_0B) {
-                    parsedSFO.type = 'PS3 UPDATE'
-                } else {
-                    parsedSFO.type = 'PS3 DLC'
-                }
-                break
-            case 0x5:
-                parsedSFO.type = 'PS3 GAME'
-                break
-            case 0x7:
-                if (parsedSFO.type_0B) {
-                    parsedSFO.type = 'PSP DLC'
-                } else {
-                    parsedSFO.type = 'PSP GAME'
-                }
-                break
-            case 0x9:
-                parsedSFO.type = 'PSP or PS3 THEME'
-                break
-            case 0xB:
-                parsedSFO.type = 'PS3 UPDATE'
-                break
-            case 0xD:
-                parsedSFO.type = 'PS3 AVATAR'
-                break
-            case 0x15:
-                parsedSFO.type = 'VITA APP'
-                break
-            case 0x16:
-                parsedSFO.type = 'VITA DLC'
-                break
-            case 0x1F:
-                parsedSFO.type = 'VITA THEME'
-                break
-            case 0x18:
-                parsedSFO.type = 'PSM GAME'
-                break
-            default:
-                console.error('ERROR: PKG content type ' + id + ' not supported.')
-        }
-    }
-
-    return parsedSFO
-}
-
-// http://www.psdevwiki.com/ps3/PKG_files#File_Header_2
-function getHeader(dataBuffer) {
-    var b = binary(dataBuffer)
-        .magic(4, 0x7F504B47)
-        .word16bu('pkg_revision')
-        .word16bu('pkg_type')
-        .word32bu('pkg_metadata_offset')
-        .word32bu('ctype')
-        .word32bu('size')
-        .skip(-8)
-        .word32bu('pkg_metadata_count')
-        .word32bu('pkg_metadata_size')
-        .word32bu('item_count')
-        .word64bu('total_size')
-        .word64bu('data_offset')
-        .word64bu('data_size')
-        .buffer('content_id', 0x24)
-        .loop(function(endSeg, vars) {
-            this
-                .word32bu('ctype')
-                .word32bu('size')
-                .tap((vars) => {
-                    if (vars.ctype === 0x1) {
-                        this.word32bu('drm_type')
-                        // vars.pkg_metadata_offset += 4 * vars.size
-                    }
-                    else if (vars.ctype === 0x2) {
-                        this.word32bu('content_type')
-                    }
-                    else if (vars.ctype === 0xA) {
-                        vars.type_0A = true
-                    }
-                    else if (vars.ctype === 0xB) {
-                        vars.type_0B = true
-                    }
-                    else if (vars.ctype === 0xE) {
-                        this.word32bu('sfo_offset')
-                            .word32bu('sfo_size')
-                            .setOffset('sfo_offset')
-                            .buffer('sfo', 'sfo_size')
-                        endSeg()
-                    }
-                })
-        })
-        .vars;
-
-    return b
+    var units = si
+        ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
+        : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
+    var u = -1;
+    do {
+        bytes /= thresh;
+        ++u;
+    } while(Math.abs(bytes) >= thresh && u < units.length - 1);
+    return bytes.toFixed(1)+' '+units[u];
 }
