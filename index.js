@@ -15,6 +15,7 @@ exports.getinfo = (url, cb) => {
         region: null,
         contentId: null,
         size: 0,
+        prettySize: 0,
         name: null,
         requiredFw: -1,
         appVersion: -1,
@@ -28,7 +29,8 @@ exports.getinfo = (url, cb) => {
             data.titleId = sfoData.titleId
             data.region = getRegion(sfoData.contentId.charAt(0))
             data.contentId = sfoData.contentId
-            data.size = humanFileSize(sfoData.total_size, true)
+            data.size = sfoData.total_size
+            data.prettySize = humanFileSize(sfoData.total_size, true)
             data.name = sfoData.title
             data.requiredFw = sfoData.min_ver
             data.appVersion = sfoData.app_ver
