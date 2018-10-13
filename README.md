@@ -14,9 +14,9 @@ let info = getinfo(url, (data) => {
  * Results
  ********/
  { type: 'VITA APP',
-  title_id: 'PCSA00035',
+  titleId: 'PCSA00035',
   region: 'US',
-  content_id: 'UP9000-PCSA00035_00-TABLESOCCERUS000',
+  contentId: 'UP9000-PCSA00035_00-TABLESOCCERUS000',
   size: '191.6 MB',
   name: 'Table Soccer',
   requiredFw: 1.52,

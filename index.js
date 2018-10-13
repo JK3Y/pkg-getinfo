@@ -11,9 +11,9 @@ const Headers = fetch.Headers;
 exports.getinfo = (url, cb) => {
     let data = {
         type: null,
-        title_id: null,
+        titleId: null,
         region: null,
-        content_id: null,
+        contentId: null,
         size: 0,
         name: null,
         requiredFw: -1,
@@ -25,9 +25,9 @@ exports.getinfo = (url, cb) => {
         .then(parseSFO)
         .then(function(sfoData) {
             data.type = sfoData.pkg_type
-            data.title_id = sfoData.title_id
-            data.region = getRegion(sfoData.content_id.charAt(0))
-            data.content_id = sfoData.content_id
+            data.titleId = sfoData.titleId
+            data.region = getRegion(sfoData.contentId.charAt(0))
+            data.contentId = sfoData.contentId
             data.size = humanFileSize(sfoData.total_size, true)
             data.name = sfoData.title
             data.requiredFw = sfoData.min_ver
@@ -56,7 +56,7 @@ function getHeader(dataBuffer) {
         type_0B,
         pkg_type,
         pkg_psxtitleid,
-        content_id,
+        contentId,
         content_type = 0,
         sfo_offset = 0,
         sfo_size = 0;
@@ -74,7 +74,7 @@ function getHeader(dataBuffer) {
     // Read total PKG size from header
     let total_size = dataBuffer.slice(24, 24 + 8).readInt32BE(4);
 
-    content_id = dataBuffer.slice(48, 48 + 36);
+    contentId = dataBuffer.slice(48, 48 + 36);
 
     let offset = meta_offset.readInt32BE(0);
 
@@ -162,7 +162,7 @@ function getHeader(dataBuffer) {
         type_0B: type_0B,
         pkg_type: pkg_type,
         pkg_psxtitleid: pkg_psxtitleid,
-        content_id: content_id,
+        contentId: contentId,
         content_type: content_type,
         sfo_offset: sfo_offset,
         sfo_size: sfo_size,
@@ -226,10 +226,10 @@ function parseSFO(header) {
             header.title = value
         }
         else if (sfo_index_keyname === 'CONTENT_ID') {
-            header.content_id = value
+            header.contentId = value
         }
         else if (sfo_index_keyname === 'TITLE_ID') {
-            header.title_id = value
+            header.titleId = value
         }
         else if (sfo_index_keyname === 'PSP2_DISP_VER') {
             header.min_ver = parseFloat(value)
