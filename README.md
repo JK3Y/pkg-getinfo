@@ -14,6 +14,8 @@ let info = getinfo(url, (data) => {
  * Results
  ********/
  { type: 'VITA APP',
+  consoleType: 'PSV',
+  fileType: 'GAMES',
   titleId: 'PCSA00035',
   region: 'US',
   contentId: 'UP9000-PCSA00035_00-TABLESOCCERUS000',

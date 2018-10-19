@@ -11,6 +11,8 @@ const Headers = fetch.Headers;
 exports.getinfo = (url, cb) => {
     let data = {
         type: null,
+        consoleType: null,
+        fileType: null,
         titleId: null,
         region: null,
         contentId: null,
@@ -25,15 +27,17 @@ exports.getinfo = (url, cb) => {
         .then(getHeader)
         .then(parseSFO)
         .then(function(sfoData) {
-            data.type = sfoData.pkg_type
-            data.titleId = sfoData.titleId
-            data.region = getRegion(sfoData.contentId.charAt(0))
-            data.contentId = sfoData.contentId
-            data.size = sfoData.total_size
-            data.prettySize = humanFileSize(sfoData.total_size, true)
-            data.name = sfoData.title
-            data.requiredFw = sfoData.min_ver
-            data.appVersion = sfoData.app_ver
+            data.type           = sfoData.pkg_type
+            data.consoleType    = sfoData.console_type
+            data.fileType       = sfoData.file_type
+            data.titleId        = sfoData.titleId
+            data.region         = getRegion(sfoData.contentId.charAt(0))
+            data.contentId      = sfoData.contentId
+            data.size           = sfoData.total_size
+            data.prettySize     = humanFileSize(sfoData.total_size, true)
+            data.name           = sfoData.title
+            data.requiredFw     = sfoData.min_ver
+            data.appVersion     = sfoData.app_ver
             data.pkg_psxtitleid = sfoData.pkg_psxtitleid
 
 
@@ -57,6 +61,8 @@ function getHeader(dataBuffer) {
         type_0A,
         type_0B,
         pkg_type,
+        console_type,
+        file_type,
         pkg_psxtitleid,
         contentId,
         content_type = 0,
@@ -117,6 +123,8 @@ function getHeader(dataBuffer) {
     if ((content_type.readInt32BE() === 0x1) ||
         (content_type.readInt32BE() === 0x6)) {
         pkg_type = 'PSX GAME';
+        console_type = 'PSX'
+        file_type = 'GAMES'
         if (content_type.readInt32BE() === 0x6) {
             pkg_psxtitleid = dataBuffer.slice(712, 721).toString()
         }
@@ -125,37 +133,59 @@ function getHeader(dataBuffer) {
         (content_type.readInt32BE() === 0xB)) {
         if (type_0B) {
             pkg_type = 'PS3 UPDATE'
+            console_type = 'PS3'
+            file_type = 'UPDATES'
         } else {
             pkg_type = 'PS3 DLC'
+            console_type = 'PS3'
+            file_type = 'DLCS'
         }
     }
     else if (content_type.readInt32BE() === 0x5) {
         pkg_type = 'PS3 GAME'
+        console_type = 'PS3'
+        file_type = 'GAMES'
     }
     else if (content_type.readInt32BE() === 0x7) {
         if (type_0B) {
             pkg_type = 'PSP DLC'
+            console_type = 'PSP'
+            file_type = 'DLCS'
         } else {
             pkg_type = 'PSP GAME'
+            console_type = 'PSP'
+            file_type = 'GAMES'
         }
     }
     else if (content_type.readInt32BE() === 0x9) {
         pkg_type = 'PSP or PS3 THEME'
+        console_type = 'PS3'
+        file_type = 'THEMES'
     }
     else if (content_type.readInt32BE() === 0xD) {
         pkg_type = 'PS3 AVATAR'
+        console_type = 'PS3'
+        file_type = 'AVATARS'
     }
     else if (content_type.readInt32BE() === 0x15) {
         pkg_type = 'VITA APP'
+        console_type = 'PSV'
+        file_type = 'GAMES'
     }
     else if (content_type.readInt32BE() === 0x16) {
         pkg_type = 'VITA DLC'
+        console_type = 'PSV'
+        file_type = 'DLCS'
     }
     else if (content_type.readInt32BE() === 0x1F) {
         pkg_type = 'VITA THEME'
+        console_type = 'PSV'
+        file_type = 'THEMES'
     }
     else if (content_type.readInt32BE() === 0x18) {
         pkg_type = 'PSM GAME'
+        console_type = 'PSM'
+        file_type = 'GAMES'
     }
 
     return {
@@ -163,6 +193,8 @@ function getHeader(dataBuffer) {
         type_0A: type_0A,
         type_0B: type_0B,
         pkg_type: pkg_type,
+        file_type: file_type,
+        console_type: console_type,
         pkg_psxtitleid: pkg_psxtitleid,
         contentId: contentId,
         content_type: content_type,
