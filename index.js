@@ -8,7 +8,7 @@ const Headers = fetch.Headers;
  * @param {function} cb Callback function
  * @return void
  */
-exports.getinfo = (url, cb) => {
+exports.getinfo = async (url) => {
     let data = {
         type: null,
         consoleType: null,
@@ -23,7 +23,7 @@ exports.getinfo = (url, cb) => {
         appVersion: -1,
     };
 
-    requestData(url)
+    return requestData(url)
         .then(getHeader)
         .then(parseSFO)
         .then(function(sfoData) {
@@ -40,8 +40,7 @@ exports.getinfo = (url, cb) => {
             data.appVersion     = sfoData.app_ver
             data.pkg_psxtitleid = sfoData.pkg_psxtitleid
 
-
-            cb(data)
+            return data
         })
 };
 

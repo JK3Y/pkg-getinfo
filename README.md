@@ -6,9 +6,8 @@ Works on PS3, PSM, PSX, and Vita PKGs
 
 ### Usage
 ```
-let info = getinfo(url, (data) => {
-     console.log(data)
- })
+let info = await getinfo(url)
+console.log(info)
 
  /*******
  * Results
