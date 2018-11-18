@@ -23,7 +23,8 @@ console.log(info)
   name: 'Table Soccer',
   requiredFw: 1.52,
   appVersion: 1,
-  pkg_psxtitleid: undefined }
+  pkg_psxtitleid: undefined,
+  pkgUrl: 'http://ares.dl.playstation.net/cdn/UP9000/PCSA00035_00/LQwFfOZQqsuSnLXTzuQYdqvsrekHQRrbEXbpXPRbjTsmgrrUNTcNQkstyvZTmxnWRiYfahtgXWmcLvjrwjpideOxvbYsZdXjLSOcn.pkg'}
  ```
 
 ### Thanks

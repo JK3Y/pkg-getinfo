@@ -1,6 +1,6 @@
 {
   "name": "pkg-getinfo",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "A Node.js module that obtains useful metadata from Playstation PKG URLs",
   "main": "index.js",
   "scripts": {

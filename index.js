@@ -21,6 +21,7 @@ exports.getinfo = async (url) => {
         name: null,
         requiredFw: -1,
         appVersion: -1,
+        pkgUrl: url
     };
 
     return requestData(url)
