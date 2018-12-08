@@ -188,7 +188,7 @@ function getHeader(dataBuffer) {
         file_type = 'GAMES'
     }
 
-    return {
+    let data = {
         drm_type: drm_type,
         type_0A: type_0A,
         type_0B: type_0B,
@@ -203,6 +203,10 @@ function getHeader(dataBuffer) {
         total_size: total_size,
         sfo: dataBuffer.slice(sfo_offset.readInt32BE(), sfo_offset.readInt32BE() + sfo_size.readInt32BE())
     }
+
+    console.log(data)
+
+    return data
 }
 
 
