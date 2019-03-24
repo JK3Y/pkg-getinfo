@@ -1,9 +1,9 @@
 import { PkgReader } from './PkgReader'
 import { PkgAesCounter } from './PkgAesCounter'
 import { Slicer } from './Slicer'
+import { Hash, HMAC } from 'fast-sha256'
 import * as aesjs from 'aes-js'
 import * as path from 'path'
-import fastSha256, { Hash, HMAC } from 'fast-sha256'
 
 interface AesAlign {
   ofsDelta: number;
@@ -224,767 +224,793 @@ const enum CONST_PKG_SUB_TYPE {
   PSP_REMASTER = 'PSP Remaster',
 }
 
-export default async function getInfo(url: string) {
-  const reader = new PkgReader(url)
-  if (url.endsWith('.xml')) {
-    await reader.setupXml()
-  } else if (url.endsWith('.json')) {
-    await reader.setupJson()
-  } else {
-    if (url.startsWith('http:') || url.startsWith('http:')) {
-      await reader.setupPkg()
-    }
+interface IGetInfoOptions {
+  baseUrl?: string
+}
+
+export default class GetInfo {
+  public reader: PkgReader
+  public options: IGetInfoOptions
+
+  constructor(options?: IGetInfoOptions) {
+    this.options = options
   }
 
-  let sfoBytes
-  let pkgHeader = null
-  let pkgExtHeader = null
-  let pkgMetadata = null
-  let pkgSfoValues = null
-  let pkgItemEntries = null
-  let pkgFileTable = null
-  let pkgFileTableMap = null
-  let itemSfoValues = null
-  let pbpHeader = null
-  let pbpItemEntries = null
-  let pbpSfoValues = null
-  let npsType = 'UNKNOWN'
-  let mainSfoValues = null
+  public async pkg(url: string) {
+    await this.initReader(url)
 
-  const results: any = {}
+    let sfoBytes
+    let pkgHeader = null
+    let pkgExtHeader = null
+    let pkgMetadata = null
+    let pkgSfoValues = null
+    let pkgItemEntries = null
+    let pkgFileTable = null
+    let pkgFileTableMap = null
+    let itemSfoValues = null
+    let pbpHeader = null
+    let pbpItemEntries = null
+    let pbpSfoValues = null
+    let npsType = 'UNKNOWN'
+    let mainSfoValues = null
 
-  const pkg: any = {
-    headBytes: Buffer.from([]),
-    tailBytes: Buffer.from([]),
-  }
+    const results: any = {}
 
-  try {
-    pkg.headBytes = await reader.read(0, 4)
-    reader.close()
-  } catch (e) {
-    console.error(e)
-    reader.close()
-    throw new Error(
-      `Could not get PKG magic at offset 0 with size 4 from ${reader.getSource()}`
-    )
-  }
-
-  const magic = pkg.headBytes.toString('hex')
-
-  if (magic === CONST_PKG3_MAGIC.toString(16)) {
-    pkg.itemsInfoBytes = {}
-    pkg.itemBytes = {}
-    pkg.headBytes = Buffer.concat([
-      pkg.headBytes,
-      await reader.read(4, CONST_PKG3_HEADER_SIZE - 4),
-    ])
-
-    let parsedHeader = await parsePkg3Header(pkg.headBytes, reader)
-    pkgHeader = parsedHeader.pkgHeader
-    pkgExtHeader = parsedHeader.pkgExtHeader
-    pkgMetadata = parsedHeader.pkgMetadata
-    pkg.headBytes = parsedHeader.headBytes
-
-    if (pkgHeader.totalSize) {
-      results.pkgTotalSize = parseInt(pkgHeader.totalSize.toString('hex'), 16)
-    }
-    if (pkgHeader.contentId) {
-      results.pkgContentId = pkgHeader.contentId
-      results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16)
-      results.pkgCidTitleId2 = pkgHeader.contentId.substr(20)
-    }
-    if (pkgMetadata[0x0e]) {
-      results.pkgSfoOffset = pkgMetadata[0x0e].ofs
-      results.pkgSfoSize = pkgMetadata[0x0e].size
-    }
-    if (pkgMetadata[0x01]) {
-      results.pkgDrmType = pkgMetadata[0x01].value
-    }
-    if (pkgMetadata[0x02]) {
-      results.pkgContentType = pkgMetadata[0x02].value
-    }
-    if (pkgMetadata[0x06]) {
-      results.mdTitleId = pkgMetadata[0x06].value
-    }
-    // if (pkgMetadata[0x0D]) {
-    //   if (pkgMetadata[0x0D].ofs !== 0) {
-    //
-    //   }
-    // }
-
-    if (results.pkgSfoOffset) {
-      sfoBytes = await retrieveParamSfo(pkg, results, reader)
-      // const sfoMagic = sfoBytes.readUInt32BE(0)
-      // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
-      // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-      //   reader.close()
-      //   throw new Error(`Not a known PARAM.SFO structure`)
-      // }
-      checkSfoMagic(sfoBytes.slice(0, 4), reader)
-
-      pkgSfoValues = await parseSfo(sfoBytes)
+    const pkg: any = {
+      headBytes: Buffer.from([]),
+      tailBytes: Buffer.from([]),
     }
 
-    if (pkgHeader.keyIndex !== null) {
-      let parsedItems = await parsePkg3ItemsInfo(
-        pkgHeader,
-        pkgMetadata,
-        reader
+    try {
+      pkg.headBytes = await this.reader.read(0, 4)
+      this.reader.close()
+    } catch (e) {
+      console.error(e)
+      this.reader.close()
+      throw new Error(
+        `Could not get PKG magic at offset 0 with size 4 from ${this.reader.getSource()}`
       )
-      pkg.itemsInfoBytes = parsedItems.itemsInfoBytes
-      pkgItemEntries = parsedItems.pkgItemEntries
-      results.itemsInfo = pkg.itemsInfoBytes
-      if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
-        delete results.itemsInfo[CONST_DATATYPE_AS_IS]
-      }
-      if (results.itemsInfo[CONST_DATATYPE_DECRYPTED]) {
-        delete results.itemsInfo[CONST_DATATYPE_DECRYPTED]
-      }
     }
 
-    if (pkgItemEntries) {
-      // Search PARAM.SFO in encrypted data
-      let retrieveEncryptedParamSfo = false
-      if (pkgHeader.paramSfo) {
-        retrieveEncryptedParamSfo = true
+    const magic = pkg.headBytes.toString('hex')
+
+    if (magic === CONST_PKG3_MAGIC.toString(16)) {
+      pkg.itemsInfoBytes = {}
+      pkg.itemBytes = {}
+      pkg.headBytes = Buffer.concat([
+        pkg.headBytes,
+        await this.reader.read(4, CONST_PKG3_HEADER_SIZE - 4),
+      ])
+
+      let parsedHeader = await parsePkg3Header(pkg.headBytes, this.reader)
+      pkgHeader = parsedHeader.pkgHeader
+      pkgExtHeader = parsedHeader.pkgExtHeader
+      pkgMetadata = parsedHeader.pkgMetadata
+      pkg.headBytes = parsedHeader.headBytes
+
+      if (pkgHeader.totalSize) {
+        results.pkgTotalSize = parseInt(pkgHeader.totalSize.toString('hex'), 16)
+      }
+      if (pkgHeader.contentId) {
+        results.pkgContentId = pkgHeader.contentId
+        results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16)
+        results.pkgCidTitleId2 = pkgHeader.contentId.substr(20)
+      }
+      if (pkgMetadata[0x0e]) {
+        results.pkgSfoOffset = pkgMetadata[0x0e].ofs
+        results.pkgSfoSize = pkgMetadata[0x0e].size
+      }
+      if (pkgMetadata[0x01]) {
+        results.pkgDrmType = pkgMetadata[0x01].value
+      }
+      if (pkgMetadata[0x02]) {
+        results.pkgContentType = pkgMetadata[0x02].value
+      }
+      if (pkgMetadata[0x06]) {
+        results.mdTitleId = pkgMetadata[0x06].value
+      }
+      // if (pkgMetadata[0x0D]) {
+      //   if (pkgMetadata[0x0D].ofs !== 0) {
+      //
+      //   }
+      // }
+
+      if (results.pkgSfoOffset) {
+        sfoBytes = await retrieveParamSfo(pkg, results, this.reader)
+        // const sfoMagic = sfoBytes.readUInt32BE(0)
+        // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
+        // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
+        //   this.reader.close()
+        //   throw new Error(`Not a known PARAM.SFO structure`)
+        // }
+        checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
+
+        pkgSfoValues = await parseSfo(sfoBytes)
       }
 
-      for (let itemEntry of pkgItemEntries) {
-        if (!itemEntry.name || itemEntry.dataSize <= 0) {
-          continue
+      if (pkgHeader.keyIndex !== null) {
+        let parsedItems = await parsePkg3ItemsInfo(
+          pkgHeader,
+          pkgMetadata,
+          this.reader
+        )
+        pkg.itemsInfoBytes = parsedItems.itemsInfoBytes
+        pkgItemEntries = parsedItems.pkgItemEntries
+        results.itemsInfo = pkg.itemsInfoBytes
+        if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
+          delete results.itemsInfo[CONST_DATATYPE_AS_IS]
+        }
+        if (results.itemsInfo[CONST_DATATYPE_DECRYPTED]) {
+          delete results.itemsInfo[CONST_DATATYPE_DECRYPTED]
+        }
+      }
+
+      if (pkgItemEntries) {
+        // Search PARAM.SFO in encrypted data
+        let retrieveEncryptedParamSfo = false
+        if (pkgHeader.paramSfo) {
+          retrieveEncryptedParamSfo = true
         }
 
-        let itemIndex = itemEntry.index
+        for (let itemEntry of pkgItemEntries) {
+          if (!itemEntry.name || itemEntry.dataSize <= 0) {
+            continue
+          }
 
-        if (retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo) {
-          // Retrieve PARAM.SFO
-          pkg.itemBytes[itemIndex] = {}
-          pkg.itemBytes[itemIndex].add = true
-          await processPkg3Item(pkgHeader, itemEntry, reader, pkg.itemBytes[itemIndex])
+          let itemIndex = itemEntry.index
 
-          // Process PARAM.SFO
-          sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
-            itemEntry.align.ofsDelta,
-            itemEntry.align.ofsDelta + itemEntry.dataSize
-          )
+          if (retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo) {
+            // Retrieve PARAM.SFO
+            pkg.itemBytes[itemIndex] = {}
+            pkg.itemBytes[itemIndex].add = true
+            await processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex])
 
-          // Check for known PARAM.SFO data
-          let sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
+            // Process PARAM.SFO
+            sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
+              itemEntry.align.ofsDelta,
+              itemEntry.align.ofsDelta + itemEntry.dataSize
+            )
 
-          // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-          //   reader.close()
-          //   throw new Error(`Not a known PARAM.SFO structure`)
-          // }
-          checkSfoMagic(sfoBytes.slice(0, 4), reader)
+            // Check for known PARAM.SFO data
+            let sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
 
-          // Process PARAM.SFO data
-          itemSfoValues = parseSfo(sfoBytes)
-        } else if (CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) {
-          // Retrieve PBP header
-          pkg.itemBytes[itemIndex] = {}
-          pkg.itemBytes[itemIndex].add = true
-          await processPkg3Item(
-            pkgHeader,
-            itemEntry,
-            reader,
-            pkg.itemBytes[itemIndex],
-            Math.min(2048, itemEntry.dataSize)
-          )
+            // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
+            //   this.reader.close()
+            //   throw new Error(`Not a known PARAM.SFO structure`)
+            // }
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
 
-          // Process PBP header
-          let pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE)
+            // Process PARAM.SFO data
+            itemSfoValues = parseSfo(sfoBytes)
+          } else if (CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) {
+            // Retrieve PBP header
+            pkg.itemBytes[itemIndex] = {}
+            pkg.itemBytes[itemIndex].add = true
+            await processPkg3Item(
+              pkgHeader,
+              itemEntry,
+              this.reader,
+              pkg.itemBytes[itemIndex],
+              Math.min(2048, itemEntry.dataSize)
+            )
 
-          let parsedPBP = await parsePbpHeader(pbpBytes, itemEntry.dataSize)
-          pbpHeader = parsedPBP.pbpHeaderFields
-          pbpItemEntries = parsedPBP.itemEntries
+            // Process PBP header
+            let pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE)
 
-          await processPkg3Item(
-            pkgHeader,
-            itemEntry,
-            reader,
-            pkg.itemBytes[itemIndex],
-            pbpHeader.iconPngOfs
-          )
+            let parsedPBP = await parsePbpHeader(pbpBytes, itemEntry.dataSize)
+            pbpHeader = parsedPBP.pbpHeaderFields
+            pbpItemEntries = parsedPBP.itemEntries
 
-          // Process PARAM.SFO
-          sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
-            itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs,
-            itemEntry.align.ofsDelta +
+            await processPkg3Item(
+              pkgHeader,
+              itemEntry,
+              this.reader,
+              pkg.itemBytes[itemIndex],
+              pbpHeader.iconPngOfs
+            )
+
+            // Process PARAM.SFO
+            sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
+              itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs,
+              itemEntry.align.ofsDelta +
               pbpItemEntries[0].dataOfs +
               pbpItemEntries[0].dataSize
-          )
+            )
 
-          // Check for known PARAM.SFO data
-          checkSfoMagic(sfoBytes.slice(0, 4), reader)
+            // Check for known PARAM.SFO data
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
 
-          // Process PARAM.SFO data
-          pbpSfoValues = parseSfo(sfoBytes)
+            // Process PARAM.SFO data
+            pbpSfoValues = parseSfo(sfoBytes)
+          }
         }
       }
-    }
 
-    if (pkgSfoValues === null && itemSfoValues !== null) {
-      pkgSfoValues = itemSfoValues
-      itemSfoValues = null
-    }
-    mainSfoValues = pkgSfoValues
+      if (pkgSfoValues === null && itemSfoValues !== null) {
+        pkgSfoValues = itemSfoValues
+        itemSfoValues = null
+      }
+      mainSfoValues = pkgSfoValues
 
-    // Get PKG3 unencrypted tail data
-    try {
-      pkg.tailBytes = await reader.read(
-        pkgHeader.dataOffset + pkgHeader.dataSize,
-        pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize)
-      )
-    } catch (e) {
-      reader.close()
-      console.error(
-        `Could not get PKG3 unencrypted tail at offset ${pkgHeader.dataOffset +
+      // Get PKG3 unencrypted tail data
+      try {
+        pkg.tailBytes = await this.reader.read(
+          pkgHeader.dataOffset + pkgHeader.dataSize,
+          pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize)
+        )
+      } catch (e) {
+        this.reader.close()
+        console.error(
+          `Could not get PKG3 unencrypted tail at offset ${pkgHeader.dataOffset +
           pkgHeader.dataSize} size ${pkgHeader.totalSize -
           (pkgHeader.dataOffset +
-            pkgHeader.dataSize)} from ${reader.getSource()}`
+            pkgHeader.dataSize)} from ${this.reader.getSource()}`
+        )
+      }
+
+      if (pkg.tailBytes) {
+        // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
+        results.pkgTailSize = pkg.tailBytes.length
+        results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c)
+      }
+    } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
+      // PS4
+      console.error('PS4 support not yet added.')
+    }
+    else if (magic === CONST_PBP_MAGIC.toString(16)) {
+      // PBP
+      let parsedPbpHeader = await parsePbpHeader(
+        pkg.headBytes,
+        results.fileSize,
+        this.reader
       )
-    }
+      pbpHeader = parsedPbpHeader.pbpHeaderFields
+      pbpItemEntries = parsedPbpHeader.itemEntries
 
-    if (pkg.tailBytes) {
-      // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
-      results.pkgTailSize = pkg.tailBytes.length
-      results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c)
-    }
-  } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
-    // PS4
-    console.error('PS4 support not yet added.')
-  }
-  else if (magic === CONST_PBP_MAGIC.toString(16)) {
-    // PBP
-    let parsedPbpHeader = await parsePbpHeader(
-      pkg.headBytes,
-      results.fileSize,
-      reader
-    )
-    pbpHeader = parsedPbpHeader.pbpHeaderFields
-    pbpItemEntries = parsedPbpHeader.itemEntries
+      // PARAM.SFO offset + size
+      if (pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0) {
+        results.pkgSfoOffset = pbpItemEntries[0].dataOfs
+        results.pkgSfoSize = pbpItemEntries[0].dataSize
 
-    // PARAM.SFO offset + size
-    if (pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0) {
-      results.pkgSfoOffset = pbpItemEntries[0].dataOfs
-      results.pkgSfoSize = pbpItemEntries[0].dataSize
+        // Retrieve PBP PARAM.SFO from unencrypted data
+        sfoBytes = await retrieveParamSfo(pkg, results, this.reader)
 
-      // Retrieve PBP PARAM.SFO from unencrypted data
-      sfoBytes = await retrieveParamSfo(pkg, results, reader)
+        // Process PARAM.SFO if present
+        if (sfoBytes) {
+          // Check for known PARAM.SFO data
+          checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
 
-      // Process PARAM.SFO if present
-      if (sfoBytes) {
-        // Check for known PARAM.SFO data
-        checkSfoMagic(sfoBytes.slice(0, 4), reader)
+          // Process PARAM.SFO data
+          pbpSfoValues = await parseSfo(sfoBytes)
+        }
 
-        // Process PARAM.SFO data
-        pbpSfoValues = await parseSfo(sfoBytes)
-      }
-
-      mainSfoValues = pbpSfoValues
-    }
-  }
-
-  if (results.pkgContentId) {
-    results.contentId = results.pkgContentId
-    results.cidTitleId1 = results.contentId.substring(7, 16)
-    results.cidTitleId2 = results.contentId.substring(20)
-    results.titleId = results.cidTitleId1
-  }
-
-  if (results.mdTitleId) {
-    if (!results.titleId) {
-      results.titleId = results.mdTitleId
-    }
-    if (results.cidTitleId1 && results.mdTitleId !== results.cidTitleId1) {
-      results.mdTidDiffer = true
-    }
-  }
-
-  // Process main PARAM.SFO if present
-  if (mainSfoValues) {
-    if (mainSfoValues.DISK_ID) {
-      results.sfoTitleId = mainSfoValues.DISK_ID
-    }
-    if (mainSfoValues.TITLE_ID) {
-      results.sfoTitleId = mainSfoValues.TITLE_ID
-      if (
-        results.pkgCidTitleId1 &&
-        mainSfoValues.TITLE_ID !== results.pkgCidTitleId1
-      ) {
-        results.sfoPkgTidDiffer = true
+        mainSfoValues = pbpSfoValues
       }
     }
 
-    if (mainSfoValues.CONTENT_ID) {
-      results.sfoContentId = mainSfoValues.CONTENT_ID
-      results.sfoCidTitleId1 = results.sfoContentId.substring(7, 16)
-      results.sfoCidTitleId2 = results.sfoContentId.substring(20)
-      if (
-        results.pkgContentId &&
-        mainSfoValues.CONTENT_ID !== results.pkgContentId
-      ) {
-        results.sfoCidDiffer = true
-      }
-      if (
-        mainSfoValues.TITLE_ID &&
-        mainSfoValues.TITLE_ID !== results.sfoCidTitleId1
-      ) {
-        results.sfoTidDiffer = true
-      }
-    }
-
-    if (mainSfoValues.CATEGORY) {
-      results.sfoCategory = mainSfoValues.CATEGORY
-    }
-
-    if (mainSfoValues.PUBTOOLINFO) {
-      try {
-        results.sfoCreationDate = mainSfoValues.PUBTOOLINFO.substring(7, 15)
-        results.sfoSdkVer =
-          Number(mainSfoValues.PUBTOOLINFO.substring(24, 32)) / 1000000
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    if (!results.titleId && results.sfoTitleId) {
-      results.titleId = results.sfoTitleId
-    }
-
-    if (!results.contentId && results.sfoContentId) {
-      results.contentId = results.sfoContentId
+    if (results.pkgContentId) {
+      results.contentId = results.pkgContentId
       results.cidTitleId1 = results.contentId.substring(7, 16)
       results.cidTitleId2 = results.contentId.substring(20)
+      results.titleId = results.cidTitleId1
+    }
+
+    if (results.mdTitleId) {
       if (!results.titleId) {
-        results.titleId = results.cidTitleId1
+        results.titleId = results.mdTitleId
+      }
+      if (results.cidTitleId1 && results.mdTitleId !== results.cidTitleId1) {
+        results.mdTidDiffer = true
       }
     }
-  }
 
-  // Determine some derived variables
-  // a) Region and related languages
-  if (results.contentId) {
-    let r = getRegion(results.contentId[0])
-    results.region = r.region
-    results.languages = r.languages
-    // if (results.languages === null) {
-    // TODO: line 2831/2832
-    // }
-  }
+    // Process main PARAM.SFO if present
+    if (mainSfoValues) {
+      if (mainSfoValues.DISK_ID) {
+        results.sfoTitleId = mainSfoValues.DISK_ID
+      }
+      if (mainSfoValues.TITLE_ID) {
+        results.sfoTitleId = mainSfoValues.TITLE_ID
+        if (
+          results.pkgCidTitleId1 &&
+          mainSfoValues.TITLE_ID !== results.pkgCidTitleId1
+        ) {
+          results.sfoPkgTidDiffer = true
+        }
+      }
 
-  // b) International/English title
-  for (let language of ['01', '18']) {
-    let key = 'TITLE_'.concat(language)
-    if (mainSfoValues && mainSfoValues[key]) {
-      results.sfoTitle = mainSfoValues[key]
-    }
-  }
+      if (mainSfoValues.CONTENT_ID) {
+        results.sfoContentId = mainSfoValues.CONTENT_ID
+        results.sfoCidTitleId1 = results.sfoContentId.substring(7, 16)
+        results.sfoCidTitleId2 = results.sfoContentId.substring(20)
+        if (
+          results.pkgContentId &&
+          mainSfoValues.CONTENT_ID !== results.pkgContentId
+        ) {
+          results.sfoCidDiffer = true
+        }
+        if (
+          mainSfoValues.TITLE_ID &&
+          mainSfoValues.TITLE_ID !== results.sfoCidTitleId1
+        ) {
+          results.sfoTidDiffer = true
+        }
+      }
 
-  if (!results.sfoTitle && mainSfoValues && mainSfoValues.TITLE) {
-    results.sfoTitle = mainSfoValues.TITLE
-  }
+      if (mainSfoValues.CATEGORY) {
+        results.sfoCategory = mainSfoValues.CATEGORY
+      }
 
-  // Clean international/english title
-  if (results.sfoTitle) {
-    if (REPLACE_LIST) {
-      for (let replaceChars of REPLACE_LIST) {
-        for (let i = 0; i < replaceChars[0].length; i++) {
-          let replaceChar = replaceChars[0][i]
-          if (replaceChars[1] === ' ') {
-            results.sfoTitle = results.sfoTitle.replace(replaceChar.concat(':'), ':')
-          }
-          results.sfoTitle = results.sfoTitle.replace(replaceChar, replaceChars[1])
+      if (mainSfoValues.PUBTOOLINFO) {
+        try {
+          results.sfoCreationDate = mainSfoValues.PUBTOOLINFO.substring(7, 15)
+          results.sfoSdkVer =
+            Number(mainSfoValues.PUBTOOLINFO.substring(24, 32)) / 1000000
+        } catch (e) {
+          console.error(e)
+        }
+      }
+
+      if (!results.titleId && results.sfoTitleId) {
+        results.titleId = results.sfoTitleId
+      }
+
+      if (!results.contentId && results.sfoContentId) {
+        results.contentId = results.sfoContentId
+        results.cidTitleId1 = results.contentId.substring(7, 16)
+        results.cidTitleId2 = results.contentId.substring(20)
+        if (!results.titleId) {
+          results.titleId = results.cidTitleId1
         }
       }
     }
-    results.sfoTitle = results.sfoTitle.replace(/\s+/u, ' ') // also replaces \u3000
-    // Condense demo information in title to '(DEMO)'
-    results.sfoTitle = results.sfoTitle
-      .replace('demo ver.', '(DEMO)')
-      .replace('(Demo Version)', '(DEMO)')
-      .replace('Demo Version', '(DEMO)')
-      .replace('Demo version', '(DEMO)')
-      .replace('DEMO Version', '(DEMO)')
-      .replace('DEMO version', '(DEMO)')
-      .replace('【体験版】', '(DEMO)')
-      .replace('(体験版)', '(DEMO)')
-      .replace('体験版', '(DEMO)')
-    results.sfoTitle = results.sfoTitle.replace(/(demo)/ui, '(DEMO)')
-    results.sfoTitle = results.sfoTitle.replace(/(^|[^a-z(]{1})demo([^a-z)]{1}|$)/iu, '$1(DEMO)$2')
 
-    results.sfoTitle = results.sfoTitle.replace(/(  )/iu, ' ')
-  }
+    // Determine some derived variables
+    // a) Region and related languages
+    if (results.contentId) {
+      let r = getRegion(results.contentId[0])
+      results.region = r.region
+      results.languages = r.languages
+      // if (results.languages === null) {
+      // TODO: line 2831/2832
+      // }
+    }
 
-  // c) Regional title
-  if (results.languages) {
-    for (let language of results.languages) {
+    // b) International/English title
+    for (let language of ['01', '18']) {
       let key = 'TITLE_'.concat(language)
       if (mainSfoValues && mainSfoValues[key]) {
-        results.sfoTitleRegional = mainSfoValues[key]
-        break
+        results.sfoTitle = mainSfoValues[key]
       }
     }
-  }
 
-  if (!results.sfoTitleRegional && mainSfoValues && mainSfoValues.title) {
-    results.sfoTitleRegional = mainSfoValues.title
-  }
+    if (!results.sfoTitle && mainSfoValues && mainSfoValues.TITLE) {
+      results.sfoTitle = mainSfoValues.TITLE
+    }
 
-  // Clean regional title
-  if (results.sfoTitleRegional) {
-    if (REPLACE_LIST) {
-      for (let replaceChars of REPLACE_LIST) {
-        for (let i = 0; i < replaceChars[0].length; i++) {
-          let replaceChar = replaceChars[0][i]
-          if (replaceChars[1] === ' ') {
-            results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar.concat(':'), ':')
+    // Clean international/english title
+    if (results.sfoTitle) {
+      if (REPLACE_LIST) {
+        for (let replaceChars of REPLACE_LIST) {
+          for (let i = 0; i < replaceChars[0].length; i++) {
+            let replaceChar = replaceChars[0][i]
+            if (replaceChars[1] === ' ') {
+              results.sfoTitle = results.sfoTitle.replace(replaceChar.concat(':'), ':')
+            }
+            results.sfoTitle = results.sfoTitle.replace(replaceChar, replaceChars[1])
           }
-          results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar, replaceChars[1])
+        }
+      }
+      results.sfoTitle = results.sfoTitle.replace(/\s+/u, ' ') // also replaces \u3000
+      // Condense demo information in title to '(DEMO)'
+      results.sfoTitle = results.sfoTitle
+        .replace('demo ver.', '(DEMO)')
+        .replace('(Demo Version)', '(DEMO)')
+        .replace('Demo Version', '(DEMO)')
+        .replace('Demo version', '(DEMO)')
+        .replace('DEMO Version', '(DEMO)')
+        .replace('DEMO version', '(DEMO)')
+        .replace('【体験版】', '(DEMO)')
+        .replace('(体験版)', '(DEMO)')
+        .replace('体験版', '(DEMO)')
+      results.sfoTitle = results.sfoTitle.replace(/(demo)/ui, '(DEMO)')
+      results.sfoTitle = results.sfoTitle.replace(/(^|[^a-z(]{1})demo([^a-z)]{1}|$)/iu, '$1(DEMO)$2')
+
+      results.sfoTitle = results.sfoTitle.replace(/(  )/iu, ' ')
+    }
+
+    // c) Regional title
+    if (results.languages) {
+      for (let language of results.languages) {
+        let key = 'TITLE_'.concat(language)
+        if (mainSfoValues && mainSfoValues[key]) {
+          results.sfoTitleRegional = mainSfoValues[key]
+          break
         }
       }
     }
-    results.sfoTitleRegional = results.sfoTitleRegional.replace(/\s+/u, ' ') // also replaces \u3000
-  }
 
-  // d) Determine platform and package type
-  // TODO: Further complete determination (e.g. PS4 content types)
-  if (magic === CONST_PKG3_MAGIC.toString(16)) {
-    if (results.pkgContentType) {
-      // PS3 packages
-      if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
-        results.platform = CONST_PLATFORM.PS3
-        if (pkgMetadata[0x0B]) {
-          results.pkgType = CONST_PKG_TYPE.PATCH
-          npsType = 'PS3 UPDATE'
-        } else {
-          results.pkgType = CONST_PKG_TYPE.DLC
-          npsType = 'PS3 DLC'
+    if (!results.sfoTitleRegional && mainSfoValues && mainSfoValues.title) {
+      results.sfoTitleRegional = mainSfoValues.title
+    }
+
+    // Clean regional title
+    if (results.sfoTitleRegional) {
+      if (REPLACE_LIST) {
+        for (let replaceChars of REPLACE_LIST) {
+          for (let i = 0; i < replaceChars[0].length; i++) {
+            let replaceChar = replaceChars[0][i]
+            if (replaceChars[1] === ' ') {
+              results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar.concat(':'), ':')
+            }
+            results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar, replaceChars[1])
+          }
         }
+      }
+      results.sfoTitleRegional = results.sfoTitleRegional.replace(/\s+/u, ' ') // also replaces \u3000
+    }
 
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-
-        if (results.titleId) {
-          results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
-        }
-      } else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
-        results.platform = CONST_PLATFORM.PS3
-        results.pkgType = CONST_PKG_TYPE.GAME
-        if (results.pkgContentType === 0x14) {
-          results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_REMASTER
-        }
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        npsType = 'PS3 GAME'
-
-        if (results.titleId) {
-          results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
-        }
-      } else if (results.pkgContentType === 0x9) { // PS3/PSP Themes
-        results.platform = CONST_PLATFORM.PS3
-        results.pkgType = CONST_PKG_TYPE.THEME
-        npsType = 'PS3 THEME'
-
-        if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
-          results.platform = CONST_PLATFORM.PSP
-          npsType = 'PSP THEME'
-        }
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-      } else if (results.pkgContentType === 0xD) {
-        results.platform = CONST_PLATFORM.PS3
-        results.pkgType = CONST_PKG_TYPE.AVATAR
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        npsType = 'PS3 AVATAR'
-      } else if (results.pkgContentType === 0x12) { // PS2/SFO_CATEGORY = 2P
-        results.platform = CONST_PLATFORM.PS3
-        results.pkgType = CONST_PKG_TYPE.GAME
-        results.pkgSubType = CONST_PKG_SUB_TYPE.PS2
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        npsType = 'PS3 GAME'
-
-        if (results.sfoTitleId) {
-          results.Ps2TitleId = results.sfoTitleId
-        }
-      } else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) { // PSX packages
-        results.platform = CONST_PLATFORM.PSX
-        results.pkgType = CONST_PKG_TYPE.GAME
-
-        results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
-        results.pkgExtractLicUx0 = path.join('pspemu', 'PSP', 'LICENSE', ''.concat(results.pkgContentId, '.rif'))
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        npsType = 'PSX GAME'
-
-        // Special Case: PCSC80018 "Pocketstation for PS Vita"
-        if (results.titleId === 'PCSC80018') {
-          results.platform = CONST_PLATFORM.PSV
-          results.pkgSubType = CONST_PLATFORM.PSX
-          results.pkgExtractRootUx0 = path.join('ps1emu', results.pkgCidTitleId1)
-          npsType = 'PSV GAME'
-        }
-
-        if (results.pkgContentType === 0x6 && results.mdTitleId) {
-          results.psxTitleId = results.mdTitleId
-        }
-      } else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
-        results.platform = CONST_PLATFORM.PSP
-        if (pbpSfoValues && pbpSfoValues.category) {
-          if (pbpSfoValues.category === 'PG') {
+    // d) Determine platform and package type
+    // TODO: Further complete determination (e.g. PS4 content types)
+    if (magic === CONST_PKG3_MAGIC.toString(16)) {
+      if (results.pkgContentType) {
+        // PS3 packages
+        if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
+          results.platform = CONST_PLATFORM.PS3
+          if (pkgMetadata[0x0B]) {
             results.pkgType = CONST_PKG_TYPE.PATCH
-            npsType = 'PSP UPDATE'
-          } else if (pbpSfoValues.category === 'MG') {
+            npsType = 'PS3 UPDATE'
+          } else {
             results.pkgType = CONST_PKG_TYPE.DLC
-            npsType = 'PSP DLC'
+            npsType = 'PS3 DLC'
           }
-        }
 
-        if (!results.pkgType) { // Normally CATEGORY === EG
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+
+          if (results.titleId) {
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+          }
+        } else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
+          results.platform = CONST_PLATFORM.PS3
           results.pkgType = CONST_PKG_TYPE.GAME
-          npsType = 'PSP GAME'
-        }
-
-        // TODO: Verify when ISO and when GAME directory has to be used?
-        results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
-        results.pkgExtractIsorUx0 = path.join('pspemu', 'ISO')
-        results.pkgExtractIsoName = `${results.sfoTitle} [${results.pkgCidTitleId1}].iso`
-        // results.pkgExtractIsoName = ''.concat(results.sfoTitle, ' [', results.pkgCidTitleId1, ']', '.iso')
-
-        if (results.pkgContentType === 0x7) {
-          if (results.sfoCategory === 'HG') {
-            results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_PC_ENGINE
+          if (results.pkgContentType === 0x14) {
+            results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_REMASTER
           }
-        } else if (results.pkgContentType === 0xE) {
-          results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_GO
-        } else if (results.pkgContentType === 0xF) {
-          results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_MINI
-        } else if (results.pkgContentType === 0x10) {
-          results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_NEOGEO
-        }
 
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          npsType = 'PS3 GAME'
 
-        if (results.titleId) {
-          results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+          if (results.titleId) {
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+          }
+        } else if (results.pkgContentType === 0x9) { // PS3/PSP Themes
+          results.platform = CONST_PLATFORM.PS3
+          results.pkgType = CONST_PKG_TYPE.THEME
+          npsType = 'PS3 THEME'
+
+          if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
+            results.platform = CONST_PLATFORM.PSP
+            npsType = 'PSP THEME'
+          }
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+        } else if (results.pkgContentType === 0xD) {
+          results.platform = CONST_PLATFORM.PS3
+          results.pkgType = CONST_PKG_TYPE.AVATAR
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          npsType = 'PS3 AVATAR'
+        } else if (results.pkgContentType === 0x12) { // PS2/SFO_CATEGORY = 2P
+          results.platform = CONST_PLATFORM.PS3
+          results.pkgType = CONST_PKG_TYPE.GAME
+          results.pkgSubType = CONST_PKG_SUB_TYPE.PS2
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          npsType = 'PS3 GAME'
+
+          if (results.sfoTitleId) {
+            results.Ps2TitleId = results.sfoTitleId
+          }
+        } else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) { // PSX packages
+          results.platform = CONST_PLATFORM.PSX
+          results.pkgType = CONST_PKG_TYPE.GAME
+
+          results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
+          results.pkgExtractLicUx0 = path.join('pspemu', 'PSP', 'LICENSE', ''.concat(results.pkgContentId, '.rif'))
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          npsType = 'PSX GAME'
+
+          // Special Case: PCSC80018 "Pocketstation for PS Vita"
+          if (results.titleId === 'PCSC80018') {
+            results.platform = CONST_PLATFORM.PSV
+            results.pkgSubType = CONST_PLATFORM.PSX
+            results.pkgExtractRootUx0 = path.join('ps1emu', results.pkgCidTitleId1)
+            npsType = 'PSV GAME'
+          }
+
+          if (results.pkgContentType === 0x6 && results.mdTitleId) {
+            results.psxTitleId = results.mdTitleId
+          }
+        } else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
+          results.platform = CONST_PLATFORM.PSP
+          if (pbpSfoValues && pbpSfoValues.category) {
+            if (pbpSfoValues.category === 'PG') {
+              results.pkgType = CONST_PKG_TYPE.PATCH
+              npsType = 'PSP UPDATE'
+            } else if (pbpSfoValues.category === 'MG') {
+              results.pkgType = CONST_PKG_TYPE.DLC
+              npsType = 'PSP DLC'
+            }
+          }
+
+          if (!results.pkgType) { // Normally CATEGORY === EG
+            results.pkgType = CONST_PKG_TYPE.GAME
+            npsType = 'PSP GAME'
+          }
+
+          // TODO: Verify when ISO and when GAME directory has to be used?
+          results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
+          results.pkgExtractIsorUx0 = path.join('pspemu', 'ISO')
+          results.pkgExtractIsoName = `${results.sfoTitle} [${results.pkgCidTitleId1}].iso`
+          // results.pkgExtractIsoName = ''.concat(results.sfoTitle, ' [', results.pkgCidTitleId1, ']', '.iso')
+
+          if (results.pkgContentType === 0x7) {
+            if (results.sfoCategory === 'HG') {
+              results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_PC_ENGINE
+            }
+          } else if (results.pkgContentType === 0xE) {
+            results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_GO
+          } else if (results.pkgContentType === 0xF) {
+            results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_MINI
+          } else if (results.pkgContentType === 0x10) {
+            results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_NEOGEO
+          }
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+
+          if (results.titleId) {
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+          }
+        } else if (results.pkgContentType === 0x15) { // PSV packages
+          results.platform = CONST_PLATFORM.PSV
+          if (results.sfoCategory && results.sfoCategory === 'gp') {
+            results.pkgType = CONST_PKG_TYPE.PATCH
+            results.pkgExtractRootUx0 = path.join('patch', results.cidTitleId1)
+            npsType = 'PSV UPDATE'
+          } else {
+            results.pkgType = CONST_PKG_TYPE.GAME
+            results.pkgExtractRootUx0 = path.join('app', results.cidTitleId1)
+            npsType = 'PSV GAME'
+          }
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+
+          if (results.titleId) {
+            let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
+            let data = new TextEncoder().encode(`np_${results.titleId}`)
+            updateHash.update(data)
+            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+          }
+        } else if (results.pkgContentType === 0x16) {
+          results.platform = CONST_PLATFORM.PSV
+          results.pkgType = CONST_PKG_TYPE.DLC
+
+          results.pkgExtractRootUx0 = path.join('addcont', results.cidTitleId1, results.cidTitleId2)
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+
+          npsType = 'PSV DLC'
+
+          if (results.titleId) {
+            let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
+            let data = new TextEncoder().encode(`np_${results.titleId}`)
+            updateHash.update(data)
+            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+          }
+        } else if (results.pkgContentType === 0x1F) {
+          results.platform = CONST_PLATFORM.PSV
+          results.pkgType = CONST_PKG_TYPE.THEME
+
+          results.pkgExtractRootUx0 = path.join('theme', `${results.cidTitleId1}-${results.cidTitleId2}`)
+
+          // TODO/FUTURE: bgdl
+          //  - find next free xxxxxxxx dir (hex 00000000-FFFFFFFF)
+          //    Note that Vita has issues with handling more than 32 bgdls at once
+          //  - package sub dir is Results["PKG_CID_TITLE_ID1"] for Game/DLC/Theme
+          //  - create additional d0/d1.pdb and temp.dat files in root dir for Game/Theme
+          //  - create additional f0.pdb for DLC
+          // Results["PKG_EXTRACT_ROOT_UX0"] = os.path.join("bgdl", "t", "xxxxxx")
+          // , )))
+
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+          npsType = 'PSV THEME'
+        } else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
+          results.platform = CONST_PLATFORM.PSM
+          results.pkgType = CONST_PKG_TYPE.GAME
+
+          results.pkgExtractRootUx0 = path.join('psm', results.cidTitleId1)
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+
+          npsType = 'PSM GAME'
+        } else { // Unknown packages
+          console.error(`PKG content type ${results.pkgContentType}.`)
+          results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
         }
-      } else if (results.pkgContentType === 0x15) { // PSV packages
-        results.platform = CONST_PLATFORM.PSV
-        if (results.sfoCategory && results.sfoCategory === 'gp') {
+      }
+    }
+    else if (magic === CONST_PKG4_MAGIC.toString(16)) {
+      results.platform = CONST_PLATFORM.PS4
+      if (results.pkgContentType === 0x1A) {
+        if (results.sfoCategory && results.sfoCategory === 'gd') {
+          results.pkgType = CONST_PKG_TYPE.GAME
+          npsType = 'PS4 GAME'
+        } else if (results.sfoCategory && results.sfoCategory === 'gp') {
           results.pkgType = CONST_PKG_TYPE.PATCH
-          results.pkgExtractRootUx0 = path.join('patch', results.cidTitleId1)
-          npsType = 'PSV UPDATE'
-        } else {
-          results.pkgType = CONST_PKG_TYPE.GAME
-          results.pkgExtractRootUx0 = path.join('app', results.cidTitleId1)
-          npsType = 'PSV GAME'
+          npsType = 'PS4 UPDATE'
         }
-
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-
-        if (results.titleId) {
-          let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
-          let data = new TextEncoder().encode(`np_${results.titleId}`)
-          updateHash.update(data)
-          results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+      } else if (results.pkgContentType === 0x1B) {
+        if (results.sfoCategory && results.sfoCategory === 'ac') {
+          results.pkgType = CONST_PKG_TYPE.DLC
+          npsType = 'PS4 DLC'
         }
-      } else if (results.pkgContentType === 0x16) {
-        results.platform = CONST_PLATFORM.PSV
-        results.pkgType = CONST_PKG_TYPE.DLC
+      }
+    }
+    else if (magic === CONST_PBP_MAGIC.toString(16)) { // PBP
+      // TODO
+      results.pkgExtractRootCont = results.titleId
+    }
 
-        results.pkgExtractRootUx0 = path.join('addcont', results.cidTitleId1, results.cidTitleId2)
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+    results.npsType = npsType
 
-        npsType = 'PSV DLC'
+    // e) Media/App/Firmware Version
+    let sfoValues = null
+    for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
+      if (!sfoValues) continue
+      // Media Version
+      if (!results.sfoVersion && sfoValues.discVersion) {
+        results.sfoVersion = parseFloat(sfoValues.discVersion)
+      }
+      if (!results.sfoVersion && sfoValues.version) {
+        results.sfoVersion = parseFloat(sfoValues.version)
+      }
 
-        if (results.titleId) {
-          let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
-          let data = new TextEncoder().encode(`np_${results.titleId}`)
-          updateHash.update(data)
-          results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+      // Application Version
+      if (!results.sfoAppVer && sfoValues.appVer) {
+        results.sfoAppVer = parseFloat(sfoValues.appVer)
+      }
+
+      // Firmware PS3
+      if (!results.sfoMinVerPs3 && sfoValues.ps3SystemVer) {
+        results.sfoMinVerPs3 = parseFloat(sfoValues.ps3SystemVer)
+      }
+
+      // Firmware PSP
+      if (!results.sfoMinVerPsp && sfoValues.pspSystemVer) {
+        results.sfoMinVerPsp = parseFloat(sfoValues.pspSystemVer)
+      }
+
+      // Firmware PS Vita
+      if (!results.sfoMinVerPsv && sfoValues.psp2DispVer) {
+        results.sfoMinVerPsv = parseFloat(sfoValues.psp2DispVer)
+      }
+
+      // Firmware PS4
+      if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
+        results.sfoMinVerPs4 = `${(sfoValues.systemVer >> 24) & 0xFF}.${(sfoValues.systemVer >> 16) & 0xFF}`
+      }
+    }
+
+    if (!results.sfoAppVer) {
+      results.sfoAppVer = 0x0 // mandatory value
+    }
+
+    results.sfoMinVer = 0.00 // mandatory value
+    if (results.platform) {
+      if (results.platform === CONST_PLATFORM.PS3) {
+        if (results.sfoMinVerPs3) {
+          results.sfoMinVer = results.sfoMinVerPs3
         }
-      } else if (results.pkgContentType === 0x1F) {
-        results.platform = CONST_PLATFORM.PSV
-        results.pkgType = CONST_PKG_TYPE.THEME
+      } else if (results.platform === CONST_PLATFORM.PSP) {
+        if (results.sfoMinVerPsp) {
+          results.sfoMinVer = results.sfoMinVerPsp
+        }
+      } else if (results.platform === CONST_PLATFORM.PSV) {
+        if (results.sfoMinVerPsv) {
+          results.sfoMinVer = results.sfoMinVerPsv
+        }
+      } else if (results.platform === CONST_PLATFORM.PS4) {
+        if (results.sfoMinVerPs4) {
+          results.sfoMinVer = results.sfoMinVerPs4
+        }
+      }
+    }
 
-        results.pkgExtractRootUx0 = path.join('theme', `${results.cidTitleId1}-${results.cidTitleId2}`)
+    // Output Results
+    let jsonOutput: any = {}
+    jsonOutput.results = {}
+    jsonOutput.results.source = this.reader.getSource().href
+    if (results.titleId) jsonOutput.results.titleId = results.titleId
+    if (results.sfoTitle) jsonOutput.results.title = results.sfoTitle
+    if (results.sfoTitleRegional) jsonOutput.results.regionalTitle = results.sfoTitleRegional
+    if (results.contentId) jsonOutput.results.region = results.region
+    if (results.sfoMinVer) jsonOutput.results.minFw = results.sfoMinVer
+    if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0) jsonOutput.results.minFwPs3 = results.sfoMinVerPs3
+    if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0) jsonOutput.results.minFwPsp = results.sfoMinVerPsp
+    if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0) jsonOutput.results.minFwPsv = results.sfoMinVerPsv
+    if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0) jsonOutput.results.minFwPs4 = results.sfoMinVerPs4
+    if (results.sfoSdkVer && results.sfoSdkVer >= 0) jsonOutput.results.sdkVer = results.sfoSdkVer
+    if (results.sfoCreationDate) jsonOutput.results.creationDate = results.sfoCreationDate
+    if (results.sfoVersion && results.sfoVersion >= 0) jsonOutput.results.version = results.sfoVersion
+    if (results.sfoAppVer && results.sfoAppVer >= 0) jsonOutput.results.appVer = results.sfoAppVer
+    if (results.psxTitleId) jsonOutput.results.psxTitleId = results.psxTitleId
+    if (results.contentId) jsonOutput.results.contentId = results.contentId
+    if (results.pkgTotalSize && results.pkgTotalSize > 0) {
+      jsonOutput.results.pkgTotalSize = results.pkgTotalSize
+      jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize)
+    }
+    if (results.fileSize) jsonOutput.results.fileSize = results.fileSize
+    if (results.titleUpdateUrl) jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl
+    jsonOutput.results.npsType = results.npsType
+    if (results.platform) jsonOutput.results.pkgPlatform = results.platform
+    if (results.pkgType) jsonOutput.results.pkgType = results.pkgType
+    if (results.pkgSubType) jsonOutput.results.pkgSubType = results.pkgSubType
 
-        // TODO/FUTURE: bgdl
-        //  - find next free xxxxxxxx dir (hex 00000000-FFFFFFFF)
-        //    Note that Vita has issues with handling more than 32 bgdls at once
-        //  - package sub dir is Results["PKG_CID_TITLE_ID1"] for Game/DLC/Theme
-        //  - create additional d0/d1.pdb and temp.dat files in root dir for Game/Theme
-        //  - create additional f0.pdb for DLC
-        // Results["PKG_EXTRACT_ROOT_UX0"] = os.path.join("bgdl", "t", "xxxxxx")
-        // , )))
+    if (results.toolVersion) jsonOutput.results.toolVersion = results.toolVersion
+    if (results.pkgContentId) {
+      jsonOutput.results.pkgContentId = results.pkgContentId
+      jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1
+      jsonOutput.results.pkgCidTitleId2 = results.pkgCidTitleId2
+    }
+    if (results.mdTitleId) {
+      jsonOutput.results.mdTitleId = results.mdTitleId
+      if (results.mdTidDiffer) {
+        jsonOutput.results.mdTidDiffer = results.mdTidDiffer
+      }
+    }
+    if (results.pkgSfoOffset) jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset
+    if (results.pkgSfoOffset) jsonOutput.results.pkgSfoSize = results.pkgSfoSize
+    if (results.pkgDrmType) jsonOutput.results.pkgDrmType = results.pkgDrmType
+    if (results.pkgContentType) jsonOutput.results.pkgContentType = results.pkgContentType
+    if (results.pkgTailSize) jsonOutput.results.pkgTailSize = results.pkgTailSize
+    if (results.pkgTailSha1) jsonOutput.results.pkgTailSha1 = results.pkgTailSha1
+    if (results.itemsInfo) {
+      jsonOutput.results.itemsInfo = results.itemsInfo
+      if (jsonOutput.results.itemsInfo.align) delete jsonOutput.results.itemsInfo.align
+    }
+    if (results.sfoTitleId) jsonOutput.results.sfoTitleId = results.sfoTitleId
+    if (results.sfoCategory) jsonOutput.results.sfoCategory = results.sfoCategory
+    if (results.sfoContentId) {
+      jsonOutput.results.sfoContentId = results.sfoContentId
+      jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1
+      jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2
+      if (results.sfoCidDiffer) jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer
+      if (results.sfoTidDiffer) jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer
+    }
 
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        npsType = 'PSV THEME'
-      } else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
-        results.platform = CONST_PLATFORM.PSM
-        results.pkgType = CONST_PKG_TYPE.GAME
+    return jsonOutput
+  }
 
-        results.pkgExtractRootUx0 = path.join('psm', results.cidTitleId1)
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+  private async initReader(url: string) {
+    if (this.options.baseUrl) {
+      if (!this.options.baseUrl.endsWith('/')) {
+        this.options.baseUrl += '/'
+      }
 
-        npsType = 'PSM GAME'
-      } else { // Unknown packages
-        console.error(`PKG content type ${results.pkgContentType}.`)
-        results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
+      this.reader = new PkgReader(url, this.options.baseUrl)
+    } else {
+      this.reader = new PkgReader(url)
+    }
+
+    if (url.endsWith('.xml')) {
+      await this.reader.setupXml()
+    } else if (url.endsWith('.json')) {
+      await this.reader.setupJson()
+    } else {
+      if (url.startsWith('http:') || url.startsWith('http:')) {
+        await this.reader.setupPkg()
       }
     }
   }
-  else if (magic === CONST_PKG4_MAGIC.toString(16)) {
-    results.platform = CONST_PLATFORM.PS4
-    if (results.pkgContentType === 0x1A) {
-      if (results.sfoCategory && results.sfoCategory === 'gd') {
-        results.pkgType = CONST_PKG_TYPE.GAME
-        npsType = 'PS4 GAME'
-      } else if (results.sfoCategory && results.sfoCategory === 'gp') {
-        results.pkgType = CONST_PKG_TYPE.PATCH
-        npsType = 'PS4 UPDATE'
-      }
-    } else if (results.pkgContentType === 0x1B) {
-      if (results.sfoCategory && results.sfoCategory === 'ac') {
-        results.pkgType = CONST_PKG_TYPE.DLC
-        npsType = 'PS4 DLC'
-      }
-    }
-  }
-  else if (magic === CONST_PBP_MAGIC.toString(16)) { // PBP
-    // TODO
-    results.pkgExtractRootCont = results.titleId
-  }
-
-  results.npsType = npsType
-
-  // e) Media/App/Firmware Version
-  let sfoValues = null
-  for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
-    if (!sfoValues) continue
-    // Media Version
-    if (!results.sfoVersion && sfoValues.discVersion) {
-      results.sfoVersion = parseFloat(sfoValues.discVersion)
-    }
-    if (!results.sfoVersion && sfoValues.version) {
-      results.sfoVersion = parseFloat(sfoValues.version)
-    }
-
-    // Application Version
-    if (!results.sfoAppVer && sfoValues.appVer) {
-      results.sfoAppVer = parseFloat(sfoValues.appVer)
-    }
-
-    // Firmware PS3
-    if (!results.sfoMinVerPs3 && sfoValues.ps3SystemVer) {
-      results.sfoMinVerPs3 = parseFloat(sfoValues.ps3SystemVer)
-    }
-
-    // Firmware PSP
-    if (!results.sfoMinVerPsp && sfoValues.pspSystemVer) {
-      results.sfoMinVerPsp = parseFloat(sfoValues.pspSystemVer)
-    }
-
-    // Firmware PS Vita
-    if (!results.sfoMinVerPsv && sfoValues.psp2DispVer) {
-      results.sfoMinVerPsv = parseFloat(sfoValues.psp2DispVer)
-    }
-
-    // Firmware PS4
-    if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
-      results.sfoMinVerPs4 = `${(sfoValues.systemVer >> 24) & 0xFF}.${(sfoValues.systemVer >> 16) & 0xFF}`
-    }
-  }
-
-  if (!results.sfoAppVer) {
-    results.sfoAppVer = 0x0 // mandatory value
-  }
-
-  results.sfoMinVer = 0.00 // mandatory value
-  if (results.platform) {
-    if (results.platform === CONST_PLATFORM.PS3) {
-      if (results.sfoMinVerPs3) {
-        results.sfoMinVer = results.sfoMinVerPs3
-      }
-    } else if (results.platform === CONST_PLATFORM.PSP) {
-      if (results.sfoMinVerPsp) {
-        results.sfoMinVer = results.sfoMinVerPsp
-      }
-    } else if (results.platform === CONST_PLATFORM.PSV) {
-      if (results.sfoMinVerPsv) {
-        results.sfoMinVer = results.sfoMinVerPsv
-      }
-    } else if (results.platform === CONST_PLATFORM.PS4) {
-      if (results.sfoMinVerPs4) {
-        results.sfoMinVer = results.sfoMinVerPs4
-      }
-    }
-  }
-
-  // Output Results
-  let jsonOutput: any = {}
-  jsonOutput.results = {}
-  jsonOutput.results.source = reader.getSource().href
-  if (results.titleId) jsonOutput.results.titleId = results.titleId
-  if (results.sfoTitle) jsonOutput.results.title = results.sfoTitle
-  if (results.sfoTitleRegional) jsonOutput.results.regionalTitle = results.sfoTitleRegional
-  if (results.contentId) jsonOutput.results.region = results.region
-  if (results.sfoMinVer) jsonOutput.results.minFw = results.sfoMinVer
-  if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0) jsonOutput.results.minFwPs3 = results.sfoMinVerPs3
-  if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0) jsonOutput.results.minFwPsp = results.sfoMinVerPsp
-  if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0) jsonOutput.results.minFwPsv = results.sfoMinVerPsv
-  if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0) jsonOutput.results.minFwPs4 = results.sfoMinVerPs4
-  if (results.sfoSdkVer && results.sfoSdkVer >= 0) jsonOutput.results.sdkVer = results.sfoSdkVer
-  if (results.sfoCreationDate) jsonOutput.results.creationDate = results.sfoCreationDate
-  if (results.sfoVersion && results.sfoVersion >= 0) jsonOutput.results.version = results.sfoVersion
-  if (results.sfoAppVer && results.sfoAppVer >= 0) jsonOutput.results.appVer = results.sfoAppVer
-  if (results.psxTitleId) jsonOutput.results.psxTitleId = results.psxTitleId
-  if (results.contentId) jsonOutput.results.contentId = results.contentId
-  if (results.pkgTotalSize && results.pkgTotalSize > 0) {
-    jsonOutput.results.pkgTotalSize = results.pkgTotalSize
-    jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize)
-  }
-  if (results.fileSize) jsonOutput.results.fileSize = results.fileSize
-  if (results.titleUpdateUrl) jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl
-  jsonOutput.results.npsType = results.npsType
-  if (results.platform) jsonOutput.results.pkgPlatform = results.platform
-  if (results.pkgType) jsonOutput.results.pkgType = results.pkgType
-  if (results.pkgSubType) jsonOutput.results.pkgSubType = results.pkgSubType
-
-  if (results.toolVersion) jsonOutput.results.toolVersion = results.toolVersion
-  if (results.pkgContentId) {
-    jsonOutput.results.pkgContentId = results.pkgContentId
-    jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1
-    jsonOutput.results.pkgCidTitleId2 = results.pkgCidTitleId2
-  }
-  if (results.mdTitleId) {
-    jsonOutput.results.mdTitleId = results.mdTitleId
-    if (results.mdTidDiffer) {
-      jsonOutput.results.mdTidDiffer = results.mdTidDiffer
-    }
-  }
-  if (results.pkgSfoOffset) jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset
-  if (results.pkgSfoOffset) jsonOutput.results.pkgSfoSize = results.pkgSfoSize
-  if (results.pkgDrmType) jsonOutput.results.pkgDrmType = results.pkgDrmType
-  if (results.pkgContentType) jsonOutput.results.pkgContentType = results.pkgContentType
-  if (results.pkgTailSize) jsonOutput.results.pkgTailSize = results.pkgTailSize
-  if (results.pkgTailSha1) jsonOutput.results.pkgTailSha1 = results.pkgTailSha1
-  if (results.itemsInfo) {
-    jsonOutput.results.itemsInfo = results.itemsInfo
-    if (jsonOutput.results.itemsInfo.align) delete jsonOutput.results.itemsInfo.align
-  }
-  if (results.sfoTitleId) jsonOutput.results.sfoTitleId = results.sfoTitleId
-  if (results.sfoCategory) jsonOutput.results.sfoCategory = results.sfoCategory
-  if (results.sfoContentId) {
-    jsonOutput.results.sfoContentId = results.sfoContentId
-    jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1
-    jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2
-    if (results.sfoCidDiffer) jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer
-    if (results.sfoTidDiffer) jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer
-  }
-
-  return jsonOutput
 }
 
 async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
@@ -1295,7 +1321,7 @@ async function retrieveParamSfo(pkg, results, reader: PkgReader) {
     throw new Error(
       `Could not get PARAM.SFO at offset ${results.pkgSfoOffset} with size ${
         results.pkgSfoSize
-      } from ${reader.getSource()}`
+        } from ${reader.getSource()}`
     )
   }
 }
@@ -1402,7 +1428,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     ${itemsInfoBytes.ofs} - ${itemsInfoBytes.align.ofsDelta} = \
     ${itemsInfoBytes.align.ofs} (+ ${
       headerFields.dataOffset
-    }) for Items Info/Items Entries.`)
+      }) for Items Info/Items Entries.`)
   }
 
   itemsInfoBytes[CONST_DATATYPE_AS_IS] = []
@@ -1421,7 +1447,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
 
   // Decrypt PKG3 Item Entries
   itemsInfoBytes[CONST_DATATYPE_DECRYPTED] = headerFields.aesCtr[headerFields.keyIndex
-].decrypt(itemsInfoBytes.align.ofs, itemsInfoBytes[CONST_DATATYPE_AS_IS])
+    ].decrypt(itemsInfoBytes.align.ofs, itemsInfoBytes[CONST_DATATYPE_AS_IS])
 
   // Parse PKG3 Item Entries
   let pkgItemEntries = []
@@ -1448,7 +1474,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       console.error(
         `Unaligned encrypted offset ${tempFields.dataOfs} - ${
           tempFields.align.ofsDelta
-        } = ${tempFields.align.ofs} (+${headerFields.dataOffset})`
+          } = ${tempFields.align.ofs} (+${headerFields.dataOffset})`
       )
     }
 
@@ -1489,9 +1515,9 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     console.error(
       `Item Names with offset ${
         itemsInfoBytes.namesOfs
-      } are INTERLEAVED with the Item Entries of size ${
+        } are INTERLEAVED with the Item Entries of size ${
         itemsInfoBytes.entriesSize
-      }.`
+        }.`
     )
     console.error(
       'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1500,9 +1526,9 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     console.error(
       `Item Names with offset ${
         itemsInfoBytes.namesOfs
-      } are not directly following the Item Entries with size ${
+        } are not directly following the Item Entries with size ${
         itemsInfoBytes.entriesSize
-      }`
+        }`
     )
     console.error(
       'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1518,7 +1544,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       console.error(
         `Items Info size ${
           metaData[0x0d].size
-        } from meta data 0x0D is too small for complete Items Info (Entries+Names) with total size of ${readSize}`
+          } from meta data 0x0D is too small for complete Items Info (Entries+Names) with total size of ${readSize}`
       )
       console.error(
         'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1543,7 +1569,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       reader.close()
       throw new Error(
         `Could not get PKG3 encrypted data at offset ${headerFields.dataOffset +
-          readOffset} with size ${readSize} from ${reader.getSource()}`
+        readOffset} with size ${readSize} from ${reader.getSource()}`
       )
     }
 
@@ -1563,7 +1589,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
         console.error(
           `Determined aligned Items Info size ${align.size} <> ${
             metaData[0x0d].size
-          } from meta data 0x0D.`
+            } from meta data 0x0D.`
         )
         console.error(
           'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1587,7 +1613,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       console.error(
         `Unaligned encrypted offset ${offset} - ${align.ofsDelta} = ${
           align.ofs
-        } (+ ${headerFields.dataOffset}) for ${itemEntry.index} item name.`
+          } (+ ${headerFields.dataOffset}) for ${itemEntry.index} item name.`
       )
       console.error(
         'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1705,7 +1731,7 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
         reader.close()
         throw new Error(
           `Could not get PKG3 encrypted data at offset ${extractionsFields.dataOffset +
-            align.ofs} with size ${align.size} from ${reader.getSource()}`
+          align.ofs} with size ${align.size} from ${reader.getSource()}`
         )
       }
 

@@ -49,9 +49,9 @@ var CONST_USER_AGENT_PS3 = "Mozilla/5.0 (PLAYSTATION 3; 4.84)";
 var CONST_USER_AGENT_PSV = " libhttp/3.70 (PS Vita)";
 var CONST_USER_AGENT_PS4 = "Download/1.00 libhttp/6.50 (PlayStation 4)";
 var PkgReader = /** @class */ (function () {
-    function PkgReader(url) {
+    function PkgReader(url, baseUrl) {
         this.parts = [];
-        this.baseUrl = 'http://proxy.nopaystation.com/';
+        this.baseUrl = baseUrl || '';
         this.source = new URL(this.baseUrl + url);
         this.pkgName = 'UNKNOWN';
         this.size = 0;

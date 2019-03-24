@@ -6,10 +6,18 @@ This module obtains useful metadata from Playstation PKG URLs.
 
 Compatible with PS3, PSM, PSX, Vita, and PSP PKGs.
  
+## Install
+```
+yarn add https://github.com/JK3Y/pkg-getinfo.git
+```
+
 ## Usage
 ```
-import getInfo from 'pkg-getinfo'
-let info = await getInfo(url)
+import GetInfo from 'pkg-getinfo'
+let getinfo = new GetInfo({
+    baseUrl: 'http://proxy.url.to.bypass.cors'
+})
+let info = await getinfo.pkg(url)
 console.log(info)
 
  /*******

@@ -36,9 +36,10 @@ export class PkgReader {
   public bufferSize: number
 
   public headers: object
-  private baseUrl: string = 'http://proxy.nopaystation.com/'
+  private baseUrl: string
 
-  constructor(url: string) {
+  constructor(url: string, baseUrl?: string) {
+    this.baseUrl = baseUrl || ''
     this.source = new URL(this.baseUrl + url)
     this.pkgName = 'UNKNOWN'
     this.size = 0

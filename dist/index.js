@@ -3954,9 +3954,9 @@ var CONST_USER_AGENT_PS4 = "Download/1.00 libhttp/6.50 (PlayStation 4)";
 var PkgReader =
 /** @class */
 function () {
-  function PkgReader(url) {
+  function PkgReader(url, baseUrl) {
     this.parts = [];
-    this.baseUrl = 'http://proxy.nopaystation.com/';
+    this.baseUrl = baseUrl || '';
     this.source = new URL(this.baseUrl + url);
     this.pkgName = 'UNKNOWN';
     this.size = 0;
@@ -5282,234 +5282,7 @@ function () {
 }();
 
 exports.Slicer = Slicer;
-},{}],"hEtP":[function(require,module,exports) {
-var process = require("process");
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-// resolves . and .. elements in a path array with directory names there
-// must be no slashes, empty elements, or device names (c:\) in the array
-// (so also no leading and trailing slashes - it does not distinguish
-// relative and absolute paths)
-function normalizeArray(parts, allowAboveRoot) {
-  // if the path tries to go above the root, `up` ends up > 0
-  var up = 0;
-  for (var i = parts.length - 1; i >= 0; i--) {
-    var last = parts[i];
-    if (last === '.') {
-      parts.splice(i, 1);
-    } else if (last === '..') {
-      parts.splice(i, 1);
-      up++;
-    } else if (up) {
-      parts.splice(i, 1);
-      up--;
-    }
-  }
-
-  // if the path is allowed to go above the root, restore leading ..s
-  if (allowAboveRoot) {
-    for (; up--; up) {
-      parts.unshift('..');
-    }
-  }
-
-  return parts;
-}
-
-// Split a filename into [root, dir, basename, ext], unix version
-// 'root' is just a slash, or nothing.
-var splitPathRe =
-    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
-var splitPath = function(filename) {
-  return splitPathRe.exec(filename).slice(1);
-};
-
-// path.resolve([from ...], to)
-// posix version
-exports.resolve = function() {
-  var resolvedPath = '',
-      resolvedAbsolute = false;
-
-  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
-    var path = (i >= 0) ? arguments[i] : process.cwd();
-
-    // Skip empty and invalid entries
-    if (typeof path !== 'string') {
-      throw new TypeError('Arguments to path.resolve must be strings');
-    } else if (!path) {
-      continue;
-    }
-
-    resolvedPath = path + '/' + resolvedPath;
-    resolvedAbsolute = path.charAt(0) === '/';
-  }
-
-  // At this point the path should be resolved to a full absolute path, but
-  // handle relative paths to be safe (might happen when process.cwd() fails)
-
-  // Normalize the path
-  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
-    return !!p;
-  }), !resolvedAbsolute).join('/');
-
-  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
-};
-
-// path.normalize(path)
-// posix version
-exports.normalize = function(path) {
-  var isAbsolute = exports.isAbsolute(path),
-      trailingSlash = substr(path, -1) === '/';
-
-  // Normalize the path
-  path = normalizeArray(filter(path.split('/'), function(p) {
-    return !!p;
-  }), !isAbsolute).join('/');
-
-  if (!path && !isAbsolute) {
-    path = '.';
-  }
-  if (path && trailingSlash) {
-    path += '/';
-  }
-
-  return (isAbsolute ? '/' : '') + path;
-};
-
-// posix version
-exports.isAbsolute = function(path) {
-  return path.charAt(0) === '/';
-};
-
-// posix version
-exports.join = function() {
-  var paths = Array.prototype.slice.call(arguments, 0);
-  return exports.normalize(filter(paths, function(p, index) {
-    if (typeof p !== 'string') {
-      throw new TypeError('Arguments to path.join must be strings');
-    }
-    return p;
-  }).join('/'));
-};
-
-
-// path.relative(from, to)
-// posix version
-exports.relative = function(from, to) {
-  from = exports.resolve(from).substr(1);
-  to = exports.resolve(to).substr(1);
-
-  function trim(arr) {
-    var start = 0;
-    for (; start < arr.length; start++) {
-      if (arr[start] !== '') break;
-    }
-
-    var end = arr.length - 1;
-    for (; end >= 0; end--) {
-      if (arr[end] !== '') break;
-    }
-
-    if (start > end) return [];
-    return arr.slice(start, end - start + 1);
-  }
-
-  var fromParts = trim(from.split('/'));
-  var toParts = trim(to.split('/'));
-
-  var length = Math.min(fromParts.length, toParts.length);
-  var samePartsLength = length;
-  for (var i = 0; i < length; i++) {
-    if (fromParts[i] !== toParts[i]) {
-      samePartsLength = i;
-      break;
-    }
-  }
-
-  var outputParts = [];
-  for (var i = samePartsLength; i < fromParts.length; i++) {
-    outputParts.push('..');
-  }
-
-  outputParts = outputParts.concat(toParts.slice(samePartsLength));
-
-  return outputParts.join('/');
-};
-
-exports.sep = '/';
-exports.delimiter = ':';
-
-exports.dirname = function(path) {
-  var result = splitPath(path),
-      root = result[0],
-      dir = result[1];
-
-  if (!root && !dir) {
-    // No dirname whatsoever
-    return '.';
-  }
-
-  if (dir) {
-    // It has a dirname, strip trailing slash
-    dir = dir.substr(0, dir.length - 1);
-  }
-
-  return root + dir;
-};
-
-
-exports.basename = function(path, ext) {
-  var f = splitPath(path)[2];
-  // TODO: make this comparison case-insensitive on windows?
-  if (ext && f.substr(-1 * ext.length) === ext) {
-    f = f.substr(0, f.length - ext.length);
-  }
-  return f;
-};
-
-
-exports.extname = function(path) {
-  return splitPath(path)[3];
-};
-
-function filter (xs, f) {
-    if (xs.filter) return xs.filter(f);
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        if (f(xs[i], i, xs)) res.push(xs[i]);
-    }
-    return res;
-}
-
-// String.prototype.substr - negative index don't work in IE8
-var substr = 'ab'.substr(-1) === 'b'
-    ? function (str, start, len) { return str.substr(start, len) }
-    : function (str, start, len) {
-        if (start < 0) start = str.length + start;
-        return str.substr(start, len);
-    }
-;
-
-},{"process":"yK1t"}],"GnoI":[function(require,module,exports) {
+},{}],"GnoI":[function(require,module,exports) {
 var define;
 (function (root, factory) {
     // Hack to make all exports of this module sha256 function object properties.
@@ -5886,7 +5659,234 @@ function pbkdf2(password, salt, iterations, dkLen) {
 exports.pbkdf2 = pbkdf2;
 });
 
-},{}],"N2gg":[function(require,module,exports) {
+},{}],"hEtP":[function(require,module,exports) {
+var process = require("process");
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+exports.resolve = function() {
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+};
+
+// path.normalize(path)
+// posix version
+exports.normalize = function(path) {
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isAbsolute).join('/');
+
+  if (!path && !isAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isAbsolute ? '/' : '') + path;
+};
+
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
+
+// posix version
+exports.join = function() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return exports.normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+};
+
+
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+};
+
+exports.sep = '/';
+exports.delimiter = ':';
+
+exports.dirname = function(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+};
+
+
+exports.basename = function(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+};
+
+
+exports.extname = function(path) {
+  return splitPath(path)[3];
+};
+
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
+
+},{"process":"yK1t"}],"UQvq":[function(require,module,exports) {
 var Buffer = require("buffer").Buffer;
 "use strict";
 
@@ -6037,11 +6037,11 @@ var PkgAesCounter_1 = require("./PkgAesCounter");
 
 var Slicer_1 = require("./Slicer");
 
+var fast_sha256_1 = require("fast-sha256");
+
 var aesjs = require("aes-js");
 
 var path = require("path");
-
-var fast_sha256_1 = require("fast-sha256");
 
 var PBPItemEntry =
 /** @class */
@@ -6185,1001 +6185,1040 @@ var CONST_READ_SIZE = function () {
 var CONST_READ_AHEAD_SIZE = 128 * 0x400;
 var REPLACE_LIST = [['™®☆◆', ' '], ['—–', '-']];
 
-function getInfo(url) {
-  return __awaiter(this, void 0, void 0, function () {
-    var reader, sfoBytes, pkgHeader, pkgExtHeader, pkgMetadata, pkgSfoValues, pkgItemEntries, pkgFileTable, pkgFileTableMap, itemSfoValues, pbpHeader, pbpItemEntries, pbpSfoValues, npsType, mainSfoValues, results, pkg, _a, e_1, magic, _b, _c, _d, _e, parsedHeader, parsedItems, retrieveEncryptedParamSfo, _i, pkgItemEntries_1, itemEntry, itemIndex, sfoMagic, pbpBytes, parsedPBP, _f, e_2, parsedPbpHeader, r, _g, _h, language, key, _j, REPLACE_LIST_1, replaceChars, i, replaceChar, _k, _l, language, key, _m, REPLACE_LIST_2, replaceChars, i, replaceChar, updateHash, data, updateHash, data, sfoValues, jsonOutput;
+var GetInfo =
+/** @class */
+function () {
+  function GetInfo(options) {
+    this.options = options;
+  }
 
-    return __generator(this, function (_o) {
-      switch (_o.label) {
-        case 0:
-          reader = new PkgReader_1.PkgReader(url);
-          if (!url.endsWith('.xml')) return [3
-          /*break*/
-          , 2];
-          return [4
-          /*yield*/
-          , reader.setupXml()];
+  GetInfo.prototype.pkg = function (url) {
+    return __awaiter(this, void 0, void 0, function () {
+      var sfoBytes, pkgHeader, pkgExtHeader, pkgMetadata, pkgSfoValues, pkgItemEntries, pkgFileTable, pkgFileTableMap, itemSfoValues, pbpHeader, pbpItemEntries, pbpSfoValues, npsType, mainSfoValues, results, pkg, _a, e_1, magic, _b, _c, _d, _e, parsedHeader, parsedItems, retrieveEncryptedParamSfo, _i, pkgItemEntries_1, itemEntry, itemIndex, sfoMagic, pbpBytes, parsedPBP, _f, e_2, parsedPbpHeader, r, _g, _h, language, key, _j, REPLACE_LIST_1, replaceChars, i, replaceChar, _k, _l, language, key, _m, REPLACE_LIST_2, replaceChars, i, replaceChar, updateHash, data, updateHash, data, sfoValues, jsonOutput;
 
-        case 1:
-          _o.sent();
+      return __generator(this, function (_o) {
+        switch (_o.label) {
+          case 0:
+            return [4
+            /*yield*/
+            , this.initReader(url)];
 
-          return [3
-          /*break*/
-          , 6];
+          case 1:
+            _o.sent();
 
-        case 2:
-          if (!url.endsWith('.json')) return [3
-          /*break*/
-          , 4];
-          return [4
-          /*yield*/
-          , reader.setupJson()];
+            pkgHeader = null;
+            pkgExtHeader = null;
+            pkgMetadata = null;
+            pkgSfoValues = null;
+            pkgItemEntries = null;
+            pkgFileTable = null;
+            pkgFileTableMap = null;
+            itemSfoValues = null;
+            pbpHeader = null;
+            pbpItemEntries = null;
+            pbpSfoValues = null;
+            npsType = 'UNKNOWN';
+            mainSfoValues = null;
+            results = {};
+            pkg = {
+              headBytes: Buffer.from([]),
+              tailBytes: Buffer.from([])
+            };
+            _o.label = 2;
 
-        case 3:
-          _o.sent();
+          case 2:
+            _o.trys.push([2, 4,, 5]);
 
-          return [3
-          /*break*/
-          , 6];
+            _a = pkg;
+            return [4
+            /*yield*/
+            , this.reader.read(0, 4)];
 
-        case 4:
-          if (!(url.startsWith('http:') || url.startsWith('http:'))) return [3
-          /*break*/
-          , 6];
-          return [4
-          /*yield*/
-          , reader.setupPkg()];
+          case 3:
+            _a.headBytes = _o.sent();
+            this.reader.close();
+            return [3
+            /*break*/
+            , 5];
 
-        case 5:
-          _o.sent();
+          case 4:
+            e_1 = _o.sent();
+            console.error(e_1);
+            this.reader.close();
+            throw new Error("Could not get PKG magic at offset 0 with size 4 from " + this.reader.getSource());
 
-          _o.label = 6;
+          case 5:
+            magic = pkg.headBytes.toString('hex');
+            if (!(magic === CONST_PKG3_MAGIC.toString(16))) return [3
+            /*break*/
+            , 25];
+            pkg.itemsInfoBytes = {};
+            pkg.itemBytes = {};
+            _b = pkg;
+            _d = (_c = Buffer).concat;
+            _e = [pkg.headBytes];
+            return [4
+            /*yield*/
+            , this.reader.read(4, CONST_PKG3_HEADER_SIZE - 4)];
 
-        case 6:
-          pkgHeader = null;
-          pkgExtHeader = null;
-          pkgMetadata = null;
-          pkgSfoValues = null;
-          pkgItemEntries = null;
-          pkgFileTable = null;
-          pkgFileTableMap = null;
-          itemSfoValues = null;
-          pbpHeader = null;
-          pbpItemEntries = null;
-          pbpSfoValues = null;
-          npsType = 'UNKNOWN';
-          mainSfoValues = null;
-          results = {};
-          pkg = {
-            headBytes: Buffer.from([]),
-            tailBytes: Buffer.from([])
-          };
-          _o.label = 7;
+          case 6:
+            _b.headBytes = _d.apply(_c, [_e.concat([_o.sent()])]);
+            return [4
+            /*yield*/
+            , parsePkg3Header(pkg.headBytes, this.reader)];
 
-        case 7:
-          _o.trys.push([7, 9,, 10]);
+          case 7:
+            parsedHeader = _o.sent();
+            pkgHeader = parsedHeader.pkgHeader;
+            pkgExtHeader = parsedHeader.pkgExtHeader;
+            pkgMetadata = parsedHeader.pkgMetadata;
+            pkg.headBytes = parsedHeader.headBytes;
 
-          _a = pkg;
-          return [4
-          /*yield*/
-          , reader.read(0, 4)];
+            if (pkgHeader.totalSize) {
+              results.pkgTotalSize = parseInt(pkgHeader.totalSize.toString('hex'), 16);
+            }
 
-        case 8:
-          _a.headBytes = _o.sent();
-          reader.close();
-          return [3
-          /*break*/
-          , 10];
+            if (pkgHeader.contentId) {
+              results.pkgContentId = pkgHeader.contentId;
+              results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16);
+              results.pkgCidTitleId2 = pkgHeader.contentId.substr(20);
+            }
 
-        case 9:
-          e_1 = _o.sent();
-          console.error(e_1);
-          reader.close();
-          throw new Error("Could not get PKG magic at offset 0 with size 4 from " + reader.getSource());
+            if (pkgMetadata[0x0e]) {
+              results.pkgSfoOffset = pkgMetadata[0x0e].ofs;
+              results.pkgSfoSize = pkgMetadata[0x0e].size;
+            }
 
-        case 10:
-          magic = pkg.headBytes.toString('hex');
-          if (!(magic === CONST_PKG3_MAGIC.toString(16))) return [3
-          /*break*/
-          , 30];
-          pkg.itemsInfoBytes = {};
-          pkg.itemBytes = {};
-          _b = pkg;
-          _d = (_c = Buffer).concat;
-          _e = [pkg.headBytes];
-          return [4
-          /*yield*/
-          , reader.read(4, CONST_PKG3_HEADER_SIZE - 4)];
+            if (pkgMetadata[0x01]) {
+              results.pkgDrmType = pkgMetadata[0x01].value;
+            }
 
-        case 11:
-          _b.headBytes = _d.apply(_c, [_e.concat([_o.sent()])]);
-          return [4
-          /*yield*/
-          , parsePkg3Header(pkg.headBytes, reader)];
+            if (pkgMetadata[0x02]) {
+              results.pkgContentType = pkgMetadata[0x02].value;
+            }
 
-        case 12:
-          parsedHeader = _o.sent();
-          pkgHeader = parsedHeader.pkgHeader;
-          pkgExtHeader = parsedHeader.pkgExtHeader;
-          pkgMetadata = parsedHeader.pkgMetadata;
-          pkg.headBytes = parsedHeader.headBytes;
+            if (pkgMetadata[0x06]) {
+              results.mdTitleId = pkgMetadata[0x06].value;
+            }
 
-          if (pkgHeader.totalSize) {
-            results.pkgTotalSize = parseInt(pkgHeader.totalSize.toString('hex'), 16);
-          }
+            if (!results.pkgSfoOffset) return [3
+            /*break*/
+            , 10];
+            return [4
+            /*yield*/
+            , retrieveParamSfo(pkg, results, this.reader) // const sfoMagic = sfoBytes.readUInt32BE(0)
+            // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
+            // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
+            //   this.reader.close()
+            //   throw new Error(`Not a known PARAM.SFO structure`)
+            // }
+            ];
 
-          if (pkgHeader.contentId) {
-            results.pkgContentId = pkgHeader.contentId;
-            results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16);
-            results.pkgCidTitleId2 = pkgHeader.contentId.substr(20);
-          }
+          case 8:
+            sfoBytes = _o.sent(); // const sfoMagic = sfoBytes.readUInt32BE(0)
+            // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
+            // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
+            //   this.reader.close()
+            //   throw new Error(`Not a known PARAM.SFO structure`)
+            // }
 
-          if (pkgMetadata[0x0e]) {
-            results.pkgSfoOffset = pkgMetadata[0x0e].ofs;
-            results.pkgSfoSize = pkgMetadata[0x0e].size;
-          }
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
+            return [4
+            /*yield*/
+            , parseSfo(sfoBytes)];
 
-          if (pkgMetadata[0x01]) {
-            results.pkgDrmType = pkgMetadata[0x01].value;
-          }
+          case 9:
+            pkgSfoValues = _o.sent();
+            _o.label = 10;
 
-          if (pkgMetadata[0x02]) {
-            results.pkgContentType = pkgMetadata[0x02].value;
-          }
+          case 10:
+            if (!(pkgHeader.keyIndex !== null)) return [3
+            /*break*/
+            , 12];
+            return [4
+            /*yield*/
+            , parsePkg3ItemsInfo(pkgHeader, pkgMetadata, this.reader)];
 
-          if (pkgMetadata[0x06]) {
-            results.mdTitleId = pkgMetadata[0x06].value;
-          }
+          case 11:
+            parsedItems = _o.sent();
+            pkg.itemsInfoBytes = parsedItems.itemsInfoBytes;
+            pkgItemEntries = parsedItems.pkgItemEntries;
+            results.itemsInfo = pkg.itemsInfoBytes;
 
-          if (!results.pkgSfoOffset) return [3
-          /*break*/
-          , 15];
-          return [4
-          /*yield*/
-          , retrieveParamSfo(pkg, results, reader) // const sfoMagic = sfoBytes.readUInt32BE(0)
-          // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
-          // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-          //   reader.close()
-          //   throw new Error(`Not a known PARAM.SFO structure`)
-          // }
-          ];
+            if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
+              delete results.itemsInfo[CONST_DATATYPE_AS_IS];
+            }
 
-        case 13:
-          sfoBytes = _o.sent(); // const sfoMagic = sfoBytes.readUInt32BE(0)
-          // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
-          // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-          //   reader.close()
-          //   throw new Error(`Not a known PARAM.SFO structure`)
-          // }
+            if (results.itemsInfo[CONST_DATATYPE_DECRYPTED]) {
+              delete results.itemsInfo[CONST_DATATYPE_DECRYPTED];
+            }
 
-          checkSfoMagic(sfoBytes.slice(0, 4), reader);
-          return [4
-          /*yield*/
-          , parseSfo(sfoBytes)];
+            _o.label = 12;
 
-        case 14:
-          pkgSfoValues = _o.sent();
-          _o.label = 15;
+          case 12:
+            if (!pkgItemEntries) return [3
+            /*break*/
+            , 20];
+            retrieveEncryptedParamSfo = false;
 
-        case 15:
-          if (!(pkgHeader.keyIndex !== null)) return [3
-          /*break*/
-          , 17];
-          return [4
-          /*yield*/
-          , parsePkg3ItemsInfo(pkgHeader, pkgMetadata, reader)];
+            if (pkgHeader.paramSfo) {
+              retrieveEncryptedParamSfo = true;
+            }
 
-        case 16:
-          parsedItems = _o.sent();
-          pkg.itemsInfoBytes = parsedItems.itemsInfoBytes;
-          pkgItemEntries = parsedItems.pkgItemEntries;
-          results.itemsInfo = pkg.itemsInfoBytes;
+            _i = 0, pkgItemEntries_1 = pkgItemEntries;
+            _o.label = 13;
 
-          if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
-            delete results.itemsInfo[CONST_DATATYPE_AS_IS];
-          }
+          case 13:
+            if (!(_i < pkgItemEntries_1.length)) return [3
+            /*break*/
+            , 20];
+            itemEntry = pkgItemEntries_1[_i];
 
-          if (results.itemsInfo[CONST_DATATYPE_DECRYPTED]) {
-            delete results.itemsInfo[CONST_DATATYPE_DECRYPTED];
-          }
+            if (!itemEntry.name || itemEntry.dataSize <= 0) {
+              return [3
+              /*break*/
+              , 19];
+            }
 
-          _o.label = 17;
+            itemIndex = itemEntry.index;
+            if (!(retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo)) return [3
+            /*break*/
+            , 15]; // Retrieve PARAM.SFO
 
-        case 17:
-          if (!pkgItemEntries) return [3
-          /*break*/
-          , 25];
-          retrieveEncryptedParamSfo = false;
+            pkg.itemBytes[itemIndex] = {};
+            pkg.itemBytes[itemIndex].add = true;
+            return [4
+            /*yield*/
+            , processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex]) // Process PARAM.SFO
+            ];
 
-          if (pkgHeader.paramSfo) {
-            retrieveEncryptedParamSfo = true;
-          }
+          case 14:
+            _o.sent(); // Process PARAM.SFO
 
-          _i = 0, pkgItemEntries_1 = pkgItemEntries;
-          _o.label = 18;
 
-        case 18:
-          if (!(_i < pkgItemEntries_1.length)) return [3
-          /*break*/
-          , 25];
-          itemEntry = pkgItemEntries_1[_i];
+            sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + itemEntry.dataSize);
+            sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16); // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
+            //   this.reader.close()
+            //   throw new Error(`Not a known PARAM.SFO structure`)
+            // }
 
-          if (!itemEntry.name || itemEntry.dataSize <= 0) {
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader); // Process PARAM.SFO data
+
+            itemSfoValues = parseSfo(sfoBytes);
+            return [3
+            /*break*/
+            , 19];
+
+          case 15:
+            if (!CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) return [3
+            /*break*/
+            , 19]; // Retrieve PBP header
+
+            pkg.itemBytes[itemIndex] = {};
+            pkg.itemBytes[itemIndex].add = true;
+            return [4
+            /*yield*/
+            , processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex], Math.min(2048, itemEntry.dataSize)) // Process PBP header
+            ];
+
+          case 16:
+            _o.sent();
+
+            pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE);
+            return [4
+            /*yield*/
+            , parsePbpHeader(pbpBytes, itemEntry.dataSize)];
+
+          case 17:
+            parsedPBP = _o.sent();
+            pbpHeader = parsedPBP.pbpHeaderFields;
+            pbpItemEntries = parsedPBP.itemEntries;
+            return [4
+            /*yield*/
+            , processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex], pbpHeader.iconPngOfs) // Process PARAM.SFO
+            ];
+
+          case 18:
+            _o.sent(); // Process PARAM.SFO
+
+
+            sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs, itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs + pbpItemEntries[0].dataSize); // Check for known PARAM.SFO data
+
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader); // Process PARAM.SFO data
+
+            pbpSfoValues = parseSfo(sfoBytes);
+            _o.label = 19;
+
+          case 19:
+            _i++;
+            return [3
+            /*break*/
+            , 13];
+
+          case 20:
+            if (pkgSfoValues === null && itemSfoValues !== null) {
+              pkgSfoValues = itemSfoValues;
+              itemSfoValues = null;
+            }
+
+            mainSfoValues = pkgSfoValues;
+            _o.label = 21;
+
+          case 21:
+            _o.trys.push([21, 23,, 24]);
+
+            _f = pkg;
+            return [4
+            /*yield*/
+            , this.reader.read(pkgHeader.dataOffset + pkgHeader.dataSize, pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize))];
+
+          case 22:
+            _f.tailBytes = _o.sent();
             return [3
             /*break*/
             , 24];
-          }
 
-          itemIndex = itemEntry.index;
-          if (!(retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo)) return [3
-          /*break*/
-          , 20]; // Retrieve PARAM.SFO
+          case 23:
+            e_2 = _o.sent();
+            this.reader.close();
+            console.error("Could not get PKG3 unencrypted tail at offset " + (pkgHeader.dataOffset + pkgHeader.dataSize) + " size " + (pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize)) + " from " + this.reader.getSource());
+            return [3
+            /*break*/
+            , 24];
 
-          pkg.itemBytes[itemIndex] = {};
-          pkg.itemBytes[itemIndex].add = true;
-          return [4
-          /*yield*/
-          , processPkg3Item(pkgHeader, itemEntry, reader, pkg.itemBytes[itemIndex]) // Process PARAM.SFO
-          ];
-
-        case 19:
-          _o.sent(); // Process PARAM.SFO
-
-
-          sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + itemEntry.dataSize);
-          sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16); // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-          //   reader.close()
-          //   throw new Error(`Not a known PARAM.SFO structure`)
-          // }
-
-          checkSfoMagic(sfoBytes.slice(0, 4), reader); // Process PARAM.SFO data
-
-          itemSfoValues = parseSfo(sfoBytes);
-          return [3
-          /*break*/
-          , 24];
-
-        case 20:
-          if (!CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) return [3
-          /*break*/
-          , 24]; // Retrieve PBP header
-
-          pkg.itemBytes[itemIndex] = {};
-          pkg.itemBytes[itemIndex].add = true;
-          return [4
-          /*yield*/
-          , processPkg3Item(pkgHeader, itemEntry, reader, pkg.itemBytes[itemIndex], Math.min(2048, itemEntry.dataSize)) // Process PBP header
-          ];
-
-        case 21:
-          _o.sent();
-
-          pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE);
-          return [4
-          /*yield*/
-          , parsePbpHeader(pbpBytes, itemEntry.dataSize)];
-
-        case 22:
-          parsedPBP = _o.sent();
-          pbpHeader = parsedPBP.pbpHeaderFields;
-          pbpItemEntries = parsedPBP.itemEntries;
-          return [4
-          /*yield*/
-          , processPkg3Item(pkgHeader, itemEntry, reader, pkg.itemBytes[itemIndex], pbpHeader.iconPngOfs) // Process PARAM.SFO
-          ];
-
-        case 23:
-          _o.sent(); // Process PARAM.SFO
-
-
-          sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs, itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs + pbpItemEntries[0].dataSize); // Check for known PARAM.SFO data
-
-          checkSfoMagic(sfoBytes.slice(0, 4), reader); // Process PARAM.SFO data
-
-          pbpSfoValues = parseSfo(sfoBytes);
-          _o.label = 24;
-
-        case 24:
-          _i++;
-          return [3
-          /*break*/
-          , 18];
-
-        case 25:
-          if (pkgSfoValues === null && itemSfoValues !== null) {
-            pkgSfoValues = itemSfoValues;
-            itemSfoValues = null;
-          }
-
-          mainSfoValues = pkgSfoValues;
-          _o.label = 26;
-
-        case 26:
-          _o.trys.push([26, 28,, 29]);
-
-          _f = pkg;
-          return [4
-          /*yield*/
-          , reader.read(pkgHeader.dataOffset + pkgHeader.dataSize, pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize))];
-
-        case 27:
-          _f.tailBytes = _o.sent();
-          return [3
-          /*break*/
-          , 29];
-
-        case 28:
-          e_2 = _o.sent();
-          reader.close();
-          console.error("Could not get PKG3 unencrypted tail at offset " + (pkgHeader.dataOffset + pkgHeader.dataSize) + " size " + (pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize)) + " from " + reader.getSource());
-          return [3
-          /*break*/
-          , 29];
-
-        case 29:
-          if (pkg.tailBytes) {
-            // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
-            results.pkgTailSize = pkg.tailBytes.length;
-            results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c);
-          }
-
-          return [3
-          /*break*/
-          , 36];
-
-        case 30:
-          if (!(magic === CONST_PKG4_MAGIC.toString(16))) return [3
-          /*break*/
-          , 31]; // PS4
-
-          console.error('PS4 support not yet added.');
-          return [3
-          /*break*/
-          , 36];
-
-        case 31:
-          if (!(magic === CONST_PBP_MAGIC.toString(16))) return [3
-          /*break*/
-          , 36];
-          return [4
-          /*yield*/
-          , parsePbpHeader(pkg.headBytes, results.fileSize, reader)];
-
-        case 32:
-          parsedPbpHeader = _o.sent();
-          pbpHeader = parsedPbpHeader.pbpHeaderFields;
-          pbpItemEntries = parsedPbpHeader.itemEntries;
-          if (!(pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0)) return [3
-          /*break*/
-          , 36];
-          results.pkgSfoOffset = pbpItemEntries[0].dataOfs;
-          results.pkgSfoSize = pbpItemEntries[0].dataSize;
-          return [4
-          /*yield*/
-          , retrieveParamSfo(pkg, results, reader) // Process PARAM.SFO if present
-          ];
-
-        case 33:
-          // Retrieve PBP PARAM.SFO from unencrypted data
-          sfoBytes = _o.sent();
-          if (!sfoBytes) return [3
-          /*break*/
-          , 35]; // Check for known PARAM.SFO data
-
-          checkSfoMagic(sfoBytes.slice(0, 4), reader);
-          return [4
-          /*yield*/
-          , parseSfo(sfoBytes)];
-
-        case 34:
-          // Process PARAM.SFO data
-          pbpSfoValues = _o.sent();
-          _o.label = 35;
-
-        case 35:
-          mainSfoValues = pbpSfoValues;
-          _o.label = 36;
-
-        case 36:
-          if (results.pkgContentId) {
-            results.contentId = results.pkgContentId;
-            results.cidTitleId1 = results.contentId.substring(7, 16);
-            results.cidTitleId2 = results.contentId.substring(20);
-            results.titleId = results.cidTitleId1;
-          }
-
-          if (results.mdTitleId) {
-            if (!results.titleId) {
-              results.titleId = results.mdTitleId;
+          case 24:
+            if (pkg.tailBytes) {
+              // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
+              results.pkgTailSize = pkg.tailBytes.length;
+              results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c);
             }
 
-            if (results.cidTitleId1 && results.mdTitleId !== results.cidTitleId1) {
-              results.mdTidDiffer = true;
-            }
-          } // Process main PARAM.SFO if present
+            return [3
+            /*break*/
+            , 31];
 
+          case 25:
+            if (!(magic === CONST_PKG4_MAGIC.toString(16))) return [3
+            /*break*/
+            , 26]; // PS4
 
-          if (mainSfoValues) {
-            if (mainSfoValues.DISK_ID) {
-              results.sfoTitleId = mainSfoValues.DISK_ID;
-            }
+            console.error('PS4 support not yet added.');
+            return [3
+            /*break*/
+            , 31];
 
-            if (mainSfoValues.TITLE_ID) {
-              results.sfoTitleId = mainSfoValues.TITLE_ID;
+          case 26:
+            if (!(magic === CONST_PBP_MAGIC.toString(16))) return [3
+            /*break*/
+            , 31];
+            return [4
+            /*yield*/
+            , parsePbpHeader(pkg.headBytes, results.fileSize, this.reader)];
 
-              if (results.pkgCidTitleId1 && mainSfoValues.TITLE_ID !== results.pkgCidTitleId1) {
-                results.sfoPkgTidDiffer = true;
-              }
-            }
+          case 27:
+            parsedPbpHeader = _o.sent();
+            pbpHeader = parsedPbpHeader.pbpHeaderFields;
+            pbpItemEntries = parsedPbpHeader.itemEntries;
+            if (!(pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0)) return [3
+            /*break*/
+            , 31];
+            results.pkgSfoOffset = pbpItemEntries[0].dataOfs;
+            results.pkgSfoSize = pbpItemEntries[0].dataSize;
+            return [4
+            /*yield*/
+            , retrieveParamSfo(pkg, results, this.reader) // Process PARAM.SFO if present
+            ];
 
-            if (mainSfoValues.CONTENT_ID) {
-              results.sfoContentId = mainSfoValues.CONTENT_ID;
-              results.sfoCidTitleId1 = results.sfoContentId.substring(7, 16);
-              results.sfoCidTitleId2 = results.sfoContentId.substring(20);
+          case 28:
+            // Retrieve PBP PARAM.SFO from unencrypted data
+            sfoBytes = _o.sent();
+            if (!sfoBytes) return [3
+            /*break*/
+            , 30]; // Check for known PARAM.SFO data
 
-              if (results.pkgContentId && mainSfoValues.CONTENT_ID !== results.pkgContentId) {
-                results.sfoCidDiffer = true;
-              }
+            checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
+            return [4
+            /*yield*/
+            , parseSfo(sfoBytes)];
 
-              if (mainSfoValues.TITLE_ID && mainSfoValues.TITLE_ID !== results.sfoCidTitleId1) {
-                results.sfoTidDiffer = true;
-              }
-            }
+          case 29:
+            // Process PARAM.SFO data
+            pbpSfoValues = _o.sent();
+            _o.label = 30;
 
-            if (mainSfoValues.CATEGORY) {
-              results.sfoCategory = mainSfoValues.CATEGORY;
-            }
+          case 30:
+            mainSfoValues = pbpSfoValues;
+            _o.label = 31;
 
-            if (mainSfoValues.PUBTOOLINFO) {
-              try {
-                results.sfoCreationDate = mainSfoValues.PUBTOOLINFO.substring(7, 15);
-                results.sfoSdkVer = Number(mainSfoValues.PUBTOOLINFO.substring(24, 32)) / 1000000;
-              } catch (e) {
-                console.error(e);
-              }
-            }
-
-            if (!results.titleId && results.sfoTitleId) {
-              results.titleId = results.sfoTitleId;
-            }
-
-            if (!results.contentId && results.sfoContentId) {
-              results.contentId = results.sfoContentId;
+          case 31:
+            if (results.pkgContentId) {
+              results.contentId = results.pkgContentId;
               results.cidTitleId1 = results.contentId.substring(7, 16);
               results.cidTitleId2 = results.contentId.substring(20);
+              results.titleId = results.cidTitleId1;
+            }
 
+            if (results.mdTitleId) {
               if (!results.titleId) {
-                results.titleId = results.cidTitleId1;
+                results.titleId = results.mdTitleId;
               }
-            }
-          } // Determine some derived variables
-          // a) Region and related languages
+
+              if (results.cidTitleId1 && results.mdTitleId !== results.cidTitleId1) {
+                results.mdTidDiffer = true;
+              }
+            } // Process main PARAM.SFO if present
 
 
-          if (results.contentId) {
-            r = getRegion(results.contentId[0]);
-            results.region = r.region;
-            results.languages = r.languages; // if (results.languages === null) {
-            // TODO: line 2831/2832
-            // }
-          } // b) International/English title
+            if (mainSfoValues) {
+              if (mainSfoValues.DISK_ID) {
+                results.sfoTitleId = mainSfoValues.DISK_ID;
+              }
 
+              if (mainSfoValues.TITLE_ID) {
+                results.sfoTitleId = mainSfoValues.TITLE_ID;
 
-          for (_g = 0, _h = ['01', '18']; _g < _h.length; _g++) {
-            language = _h[_g];
-            key = 'TITLE_'.concat(language);
-
-            if (mainSfoValues && mainSfoValues[key]) {
-              results.sfoTitle = mainSfoValues[key];
-            }
-          }
-
-          if (!results.sfoTitle && mainSfoValues && mainSfoValues.TITLE) {
-            results.sfoTitle = mainSfoValues.TITLE;
-          } // Clean international/english title
-
-
-          if (results.sfoTitle) {
-            if (REPLACE_LIST) {
-              for (_j = 0, REPLACE_LIST_1 = REPLACE_LIST; _j < REPLACE_LIST_1.length; _j++) {
-                replaceChars = REPLACE_LIST_1[_j];
-
-                for (i = 0; i < replaceChars[0].length; i++) {
-                  replaceChar = replaceChars[0][i];
-
-                  if (replaceChars[1] === ' ') {
-                    results.sfoTitle = results.sfoTitle.replace(replaceChar.concat(':'), ':');
-                  }
-
-                  results.sfoTitle = results.sfoTitle.replace(replaceChar, replaceChars[1]);
+                if (results.pkgCidTitleId1 && mainSfoValues.TITLE_ID !== results.pkgCidTitleId1) {
+                  results.sfoPkgTidDiffer = true;
                 }
               }
-            }
 
-            results.sfoTitle = results.sfoTitle.replace(/[\t-\r \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]+/, ' '); // also replaces \u3000
-            // Condense demo information in title to '(DEMO)'
+              if (mainSfoValues.CONTENT_ID) {
+                results.sfoContentId = mainSfoValues.CONTENT_ID;
+                results.sfoCidTitleId1 = results.sfoContentId.substring(7, 16);
+                results.sfoCidTitleId2 = results.sfoContentId.substring(20);
 
-            results.sfoTitle = results.sfoTitle.replace('demo ver.', '(DEMO)').replace('(Demo Version)', '(DEMO)').replace('Demo Version', '(DEMO)').replace('Demo version', '(DEMO)').replace('DEMO Version', '(DEMO)').replace('DEMO version', '(DEMO)').replace('【体験版】', '(DEMO)').replace('(体験版)', '(DEMO)').replace('体験版', '(DEMO)');
-            results.sfoTitle = results.sfoTitle.replace(/(demo)/i, '(DEMO)');
-            results.sfoTitle = results.sfoTitle.replace(/(^|(?:[\0-'\)-`\{-\u017E\u0180-\u2129\u212B-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]){1})demo((?:[\0-\(\*-`\{-\u017E\u0180-\u2129\u212B-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]){1}|$)/i, '$1(DEMO)$2');
-            results.sfoTitle = results.sfoTitle.replace(/(  )/i, ' ');
-          } // c) Regional title
+                if (results.pkgContentId && mainSfoValues.CONTENT_ID !== results.pkgContentId) {
+                  results.sfoCidDiffer = true;
+                }
+
+                if (mainSfoValues.TITLE_ID && mainSfoValues.TITLE_ID !== results.sfoCidTitleId1) {
+                  results.sfoTidDiffer = true;
+                }
+              }
+
+              if (mainSfoValues.CATEGORY) {
+                results.sfoCategory = mainSfoValues.CATEGORY;
+              }
+
+              if (mainSfoValues.PUBTOOLINFO) {
+                try {
+                  results.sfoCreationDate = mainSfoValues.PUBTOOLINFO.substring(7, 15);
+                  results.sfoSdkVer = Number(mainSfoValues.PUBTOOLINFO.substring(24, 32)) / 1000000;
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+
+              if (!results.titleId && results.sfoTitleId) {
+                results.titleId = results.sfoTitleId;
+              }
+
+              if (!results.contentId && results.sfoContentId) {
+                results.contentId = results.sfoContentId;
+                results.cidTitleId1 = results.contentId.substring(7, 16);
+                results.cidTitleId2 = results.contentId.substring(20);
+
+                if (!results.titleId) {
+                  results.titleId = results.cidTitleId1;
+                }
+              }
+            } // Determine some derived variables
+            // a) Region and related languages
 
 
-          if (results.languages) {
-            for (_k = 0, _l = results.languages; _k < _l.length; _k++) {
-              language = _l[_k];
+            if (results.contentId) {
+              r = getRegion(results.contentId[0]);
+              results.region = r.region;
+              results.languages = r.languages; // if (results.languages === null) {
+              // TODO: line 2831/2832
+              // }
+            } // b) International/English title
+
+
+            for (_g = 0, _h = ['01', '18']; _g < _h.length; _g++) {
+              language = _h[_g];
               key = 'TITLE_'.concat(language);
 
               if (mainSfoValues && mainSfoValues[key]) {
-                results.sfoTitleRegional = mainSfoValues[key];
-                break;
+                results.sfoTitle = mainSfoValues[key];
               }
             }
-          }
 
-          if (!results.sfoTitleRegional && mainSfoValues && mainSfoValues.title) {
-            results.sfoTitleRegional = mainSfoValues.title;
-          } // Clean regional title
+            if (!results.sfoTitle && mainSfoValues && mainSfoValues.TITLE) {
+              results.sfoTitle = mainSfoValues.TITLE;
+            } // Clean international/english title
 
 
-          if (results.sfoTitleRegional) {
-            if (REPLACE_LIST) {
-              for (_m = 0, REPLACE_LIST_2 = REPLACE_LIST; _m < REPLACE_LIST_2.length; _m++) {
-                replaceChars = REPLACE_LIST_2[_m];
+            if (results.sfoTitle) {
+              if (REPLACE_LIST) {
+                for (_j = 0, REPLACE_LIST_1 = REPLACE_LIST; _j < REPLACE_LIST_1.length; _j++) {
+                  replaceChars = REPLACE_LIST_1[_j];
 
-                for (i = 0; i < replaceChars[0].length; i++) {
-                  replaceChar = replaceChars[0][i];
+                  for (i = 0; i < replaceChars[0].length; i++) {
+                    replaceChar = replaceChars[0][i];
 
-                  if (replaceChars[1] === ' ') {
-                    results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar.concat(':'), ':');
+                    if (replaceChars[1] === ' ') {
+                      results.sfoTitle = results.sfoTitle.replace(replaceChar.concat(':'), ':');
+                    }
+
+                    results.sfoTitle = results.sfoTitle.replace(replaceChar, replaceChars[1]);
                   }
+                }
+              }
 
-                  results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar, replaceChars[1]);
+              results.sfoTitle = results.sfoTitle.replace(/[\t-\r \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]+/, ' '); // also replaces \u3000
+              // Condense demo information in title to '(DEMO)'
+
+              results.sfoTitle = results.sfoTitle.replace('demo ver.', '(DEMO)').replace('(Demo Version)', '(DEMO)').replace('Demo Version', '(DEMO)').replace('Demo version', '(DEMO)').replace('DEMO Version', '(DEMO)').replace('DEMO version', '(DEMO)').replace('【体験版】', '(DEMO)').replace('(体験版)', '(DEMO)').replace('体験版', '(DEMO)');
+              results.sfoTitle = results.sfoTitle.replace(/(demo)/i, '(DEMO)');
+              results.sfoTitle = results.sfoTitle.replace(/(^|(?:[\0-'\)-`\{-\u017E\u0180-\u2129\u212B-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]){1})demo((?:[\0-\(\*-`\{-\u017E\u0180-\u2129\u212B-\uD7FF\uE000-\uFFFF]|[\uD800-\uDBFF][\uDC00-\uDFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:[^\uD800-\uDBFF]|^)[\uDC00-\uDFFF]){1}|$)/i, '$1(DEMO)$2');
+              results.sfoTitle = results.sfoTitle.replace(/(  )/i, ' ');
+            } // c) Regional title
+
+
+            if (results.languages) {
+              for (_k = 0, _l = results.languages; _k < _l.length; _k++) {
+                language = _l[_k];
+                key = 'TITLE_'.concat(language);
+
+                if (mainSfoValues && mainSfoValues[key]) {
+                  results.sfoTitleRegional = mainSfoValues[key];
+                  break;
                 }
               }
             }
 
-            results.sfoTitleRegional = results.sfoTitleRegional.replace(/[\t-\r \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]+/, ' '); // also replaces \u3000
-          } // d) Determine platform and package type
-          // TODO: Further complete determination (e.g. PS4 content types)
+            if (!results.sfoTitleRegional && mainSfoValues && mainSfoValues.title) {
+              results.sfoTitleRegional = mainSfoValues.title;
+            } // Clean regional title
 
 
-          if (magic === CONST_PKG3_MAGIC.toString(16)) {
-            if (results.pkgContentType) {
-              // PS3 packages
-              if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
-                results.platform = "PS3"
-                /* PS3 */
-                ;
+            if (results.sfoTitleRegional) {
+              if (REPLACE_LIST) {
+                for (_m = 0, REPLACE_LIST_2 = REPLACE_LIST; _m < REPLACE_LIST_2.length; _m++) {
+                  replaceChars = REPLACE_LIST_2[_m];
 
-                if (pkgMetadata[0x0B]) {
-                  results.pkgType = "Update"
-                  /* PATCH */
+                  for (i = 0; i < replaceChars[0].length; i++) {
+                    replaceChar = replaceChars[0][i];
+
+                    if (replaceChars[1] === ' ') {
+                      results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar.concat(':'), ':');
+                    }
+
+                    results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar, replaceChars[1]);
+                  }
+                }
+              }
+
+              results.sfoTitleRegional = results.sfoTitleRegional.replace(/[\t-\r \xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]+/, ' '); // also replaces \u3000
+            } // d) Determine platform and package type
+            // TODO: Further complete determination (e.g. PS4 content types)
+
+
+            if (magic === CONST_PKG3_MAGIC.toString(16)) {
+              if (results.pkgContentType) {
+                // PS3 packages
+                if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
+                  results.platform = "PS3"
+                  /* PS3 */
                   ;
-                  npsType = 'PS3 UPDATE';
-                } else {
-                  results.pkgType = "DLC"
-                  /* DLC */
-                  ;
-                  npsType = 'PS3 DLC';
-                }
 
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-
-                if (results.titleId) {
-                  results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
-                }
-              } else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
-                results.platform = "PS3"
-                /* PS3 */
-                ;
-                results.pkgType = "Game"
-                /* GAME */
-                ;
-
-                if (results.pkgContentType === 0x14) {
-                  results.pkgSubType = "PSP Remaster"
-                  /* PSP_REMASTER */
-                  ;
-                }
-
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PS3 GAME';
-
-                if (results.titleId) {
-                  results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
-                }
-              } else if (results.pkgContentType === 0x9) {
-                // PS3/PSP Themes
-                results.platform = "PS3"
-                /* PS3 */
-                ;
-                results.pkgType = "Theme"
-                /* THEME */
-                ;
-                npsType = 'PS3 THEME';
-
-                if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
-                  results.platform = "PSP"
-                  /* PSP */
-                  ;
-                  npsType = 'PSP THEME';
-                }
-
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-              } else if (results.pkgContentType === 0xD) {
-                results.platform = "PS3"
-                /* PS3 */
-                ;
-                results.pkgType = "Avatar"
-                /* AVATAR */
-                ;
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PS3 AVATAR';
-              } else if (results.pkgContentType === 0x12) {
-                // PS2/SFO_CATEGORY = 2P
-                results.platform = "PS3"
-                /* PS3 */
-                ;
-                results.pkgType = "Game"
-                /* GAME */
-                ;
-                results.pkgSubType = "PS2 Classic"
-                /* PS2 */
-                ;
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PS3 GAME';
-
-                if (results.sfoTitleId) {
-                  results.Ps2TitleId = results.sfoTitleId;
-                }
-              } else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) {
-                // PSX packages
-                results.platform = "PSX"
-                /* PSX */
-                ;
-                results.pkgType = "Game"
-                /* GAME */
-                ;
-                results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1);
-                results.pkgExtractLicUx0 = path.join('pspemu', 'PSP', 'LICENSE', ''.concat(results.pkgContentId, '.rif'));
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PSX GAME'; // Special Case: PCSC80018 "Pocketstation for PS Vita"
-
-                if (results.titleId === 'PCSC80018') {
-                  results.platform = "PSV"
-                  /* PSV */
-                  ;
-                  results.pkgSubType = "PSX"
-                  /* PSX */
-                  ;
-                  results.pkgExtractRootUx0 = path.join('ps1emu', results.pkgCidTitleId1);
-                  npsType = 'PSV GAME';
-                }
-
-                if (results.pkgContentType === 0x6 && results.mdTitleId) {
-                  results.psxTitleId = results.mdTitleId;
-                }
-              } else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
-                results.platform = "PSP"
-                /* PSP */
-                ;
-
-                if (pbpSfoValues && pbpSfoValues.category) {
-                  if (pbpSfoValues.category === 'PG') {
+                  if (pkgMetadata[0x0B]) {
                     results.pkgType = "Update"
                     /* PATCH */
                     ;
-                    npsType = 'PSP UPDATE';
-                  } else if (pbpSfoValues.category === 'MG') {
+                    npsType = 'PS3 UPDATE';
+                  } else {
                     results.pkgType = "DLC"
                     /* DLC */
                     ;
-                    npsType = 'PSP DLC';
+                    npsType = 'PS3 DLC';
                   }
-                }
 
-                if (!results.pkgType) {
-                  // Normally CATEGORY === EG
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+
+                  if (results.titleId) {
+                    results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
+                  }
+                } else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
+                  results.platform = "PS3"
+                  /* PS3 */
+                  ;
                   results.pkgType = "Game"
                   /* GAME */
                   ;
-                  npsType = 'PSP GAME';
-                } // TODO: Verify when ISO and when GAME directory has to be used?
 
-
-                results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1);
-                results.pkgExtractIsorUx0 = path.join('pspemu', 'ISO');
-                results.pkgExtractIsoName = results.sfoTitle + " [" + results.pkgCidTitleId1 + "].iso"; // results.pkgExtractIsoName = ''.concat(results.sfoTitle, ' [', results.pkgCidTitleId1, ']', '.iso')
-
-                if (results.pkgContentType === 0x7) {
-                  if (results.sfoCategory === 'HG') {
-                    results.pkgSubType = "PC Engine"
-                    /* PSP_PC_ENGINE */
+                  if (results.pkgContentType === 0x14) {
+                    results.pkgSubType = "PSP Remaster"
+                    /* PSP_REMASTER */
                     ;
                   }
-                } else if (results.pkgContentType === 0xE) {
-                  results.pkgSubType = "Go"
-                  /* PSP_GO */
+
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PS3 GAME';
+
+                  if (results.titleId) {
+                    results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
+                  }
+                } else if (results.pkgContentType === 0x9) {
+                  // PS3/PSP Themes
+                  results.platform = "PS3"
+                  /* PS3 */
                   ;
-                } else if (results.pkgContentType === 0xF) {
-                  results.pkgSubType = "PSP Mini"
-                  /* PSP_MINI */
+                  results.pkgType = "Theme"
+                  /* THEME */
                   ;
-                } else if (results.pkgContentType === 0x10) {
-                  results.pkgSubType = "PSP NeoGeo"
-                  /* PSP_NEOGEO */
+                  npsType = 'PS3 THEME';
+
+                  if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
+                    results.platform = "PSP"
+                    /* PSP */
+                    ;
+                    npsType = 'PSP THEME';
+                  }
+
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                } else if (results.pkgContentType === 0xD) {
+                  results.platform = "PS3"
+                  /* PS3 */
                   ;
+                  results.pkgType = "Avatar"
+                  /* AVATAR */
+                  ;
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PS3 AVATAR';
+                } else if (results.pkgContentType === 0x12) {
+                  // PS2/SFO_CATEGORY = 2P
+                  results.platform = "PS3"
+                  /* PS3 */
+                  ;
+                  results.pkgType = "Game"
+                  /* GAME */
+                  ;
+                  results.pkgSubType = "PS2 Classic"
+                  /* PS2 */
+                  ;
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PS3 GAME';
+
+                  if (results.sfoTitleId) {
+                    results.Ps2TitleId = results.sfoTitleId;
+                  }
+                } else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) {
+                  // PSX packages
+                  results.platform = "PSX"
+                  /* PSX */
+                  ;
+                  results.pkgType = "Game"
+                  /* GAME */
+                  ;
+                  results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1);
+                  results.pkgExtractLicUx0 = path.join('pspemu', 'PSP', 'LICENSE', ''.concat(results.pkgContentId, '.rif'));
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PSX GAME'; // Special Case: PCSC80018 "Pocketstation for PS Vita"
+
+                  if (results.titleId === 'PCSC80018') {
+                    results.platform = "PSV"
+                    /* PSV */
+                    ;
+                    results.pkgSubType = "PSX"
+                    /* PSX */
+                    ;
+                    results.pkgExtractRootUx0 = path.join('ps1emu', results.pkgCidTitleId1);
+                    npsType = 'PSV GAME';
+                  }
+
+                  if (results.pkgContentType === 0x6 && results.mdTitleId) {
+                    results.psxTitleId = results.mdTitleId;
+                  }
+                } else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
+                  results.platform = "PSP"
+                  /* PSP */
+                  ;
+
+                  if (pbpSfoValues && pbpSfoValues.category) {
+                    if (pbpSfoValues.category === 'PG') {
+                      results.pkgType = "Update"
+                      /* PATCH */
+                      ;
+                      npsType = 'PSP UPDATE';
+                    } else if (pbpSfoValues.category === 'MG') {
+                      results.pkgType = "DLC"
+                      /* DLC */
+                      ;
+                      npsType = 'PSP DLC';
+                    }
+                  }
+
+                  if (!results.pkgType) {
+                    // Normally CATEGORY === EG
+                    results.pkgType = "Game"
+                    /* GAME */
+                    ;
+                    npsType = 'PSP GAME';
+                  } // TODO: Verify when ISO and when GAME directory has to be used?
+
+
+                  results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1);
+                  results.pkgExtractIsorUx0 = path.join('pspemu', 'ISO');
+                  results.pkgExtractIsoName = results.sfoTitle + " [" + results.pkgCidTitleId1 + "].iso"; // results.pkgExtractIsoName = ''.concat(results.sfoTitle, ' [', results.pkgCidTitleId1, ']', '.iso')
+
+                  if (results.pkgContentType === 0x7) {
+                    if (results.sfoCategory === 'HG') {
+                      results.pkgSubType = "PC Engine"
+                      /* PSP_PC_ENGINE */
+                      ;
+                    }
+                  } else if (results.pkgContentType === 0xE) {
+                    results.pkgSubType = "Go"
+                    /* PSP_GO */
+                    ;
+                  } else if (results.pkgContentType === 0xF) {
+                    results.pkgSubType = "PSP Mini"
+                    /* PSP_MINI */
+                    ;
+                  } else if (results.pkgContentType === 0x10) {
+                    results.pkgSubType = "PSP NeoGeo"
+                    /* PSP_NEOGEO */
+                    ;
+                  }
+
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+
+                  if (results.titleId) {
+                    results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
+                  }
+                } else if (results.pkgContentType === 0x15) {
+                  // PSV packages
+                  results.platform = "PSV"
+                  /* PSV */
+                  ;
+
+                  if (results.sfoCategory && results.sfoCategory === 'gp') {
+                    results.pkgType = "Update"
+                    /* PATCH */
+                    ;
+                    results.pkgExtractRootUx0 = path.join('patch', results.cidTitleId1);
+                    npsType = 'PSV UPDATE';
+                  } else {
+                    results.pkgType = "Game"
+                    /* GAME */
+                    ;
+                    results.pkgExtractRootUx0 = path.join('app', results.cidTitleId1);
+                    npsType = 'PSV GAME';
+                  }
+
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+
+                  if (results.titleId) {
+                    updateHash = new fast_sha256_1.HMAC(CONST_PKG3_UPDATE_KEYS[2].key);
+                    data = new TextEncoder().encode("np_" + results.titleId);
+                    updateHash.update(data);
+                    results.titleUpdateUrl = "http://gs-sec.ww.np.dl.playstation.net/pl/np/" + results.titleId + "/" + toHexString(updateHash.digest()) + "/" + results.titleId + "-ver.xml";
+                  }
+                } else if (results.pkgContentType === 0x16) {
+                  results.platform = "PSV"
+                  /* PSV */
+                  ;
+                  results.pkgType = "DLC"
+                  /* DLC */
+                  ;
+                  results.pkgExtractRootUx0 = path.join('addcont', results.cidTitleId1, results.cidTitleId2);
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PSV DLC';
+
+                  if (results.titleId) {
+                    updateHash = new fast_sha256_1.HMAC(CONST_PKG3_UPDATE_KEYS[2].key);
+                    data = new TextEncoder().encode("np_" + results.titleId);
+                    updateHash.update(data);
+                    results.titleUpdateUrl = "http://gs-sec.ww.np.dl.playstation.net/pl/np/" + results.titleId + "/" + toHexString(updateHash.digest()) + "/" + results.titleId + "-ver.xml";
+                  }
+                } else if (results.pkgContentType === 0x1F) {
+                  results.platform = "PSV"
+                  /* PSV */
+                  ;
+                  results.pkgType = "Theme"
+                  /* THEME */
+                  ;
+                  results.pkgExtractRootUx0 = path.join('theme', results.cidTitleId1 + "-" + results.cidTitleId2); // TODO/FUTURE: bgdl
+                  //  - find next free xxxxxxxx dir (hex 00000000-FFFFFFFF)
+                  //    Note that Vita has issues with handling more than 32 bgdls at once
+                  //  - package sub dir is Results["PKG_CID_TITLE_ID1"] for Game/DLC/Theme
+                  //  - create additional d0/d1.pdb and temp.dat files in root dir for Game/Theme
+                  //  - create additional f0.pdb for DLC
+                  // Results["PKG_EXTRACT_ROOT_UX0"] = os.path.join("bgdl", "t", "xxxxxx")
+                  // , )))
+
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PSV THEME';
+                } else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
+                  results.platform = "PSM"
+                  /* PSM */
+                  ;
+                  results.pkgType = "Game"
+                  /* GAME */
+                  ;
+                  results.pkgExtractRootUx0 = path.join('psm', results.cidTitleId1);
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
+                  npsType = 'PSM GAME';
+                } else {
+                  // Unknown packages
+                  console.error("PKG content type " + results.pkgContentType + ".");
+                  results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                 }
+              }
+            } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
+              results.platform = "PS4"
+              /* PS4 */
+              ;
 
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-
-                if (results.titleId) {
-                  results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
-                }
-              } else if (results.pkgContentType === 0x15) {
-                // PSV packages
-                results.platform = "PSV"
-                /* PSV */
-                ;
-
-                if (results.sfoCategory && results.sfoCategory === 'gp') {
+              if (results.pkgContentType === 0x1A) {
+                if (results.sfoCategory && results.sfoCategory === 'gd') {
+                  results.pkgType = "Game"
+                  /* GAME */
+                  ;
+                  npsType = 'PS4 GAME';
+                } else if (results.sfoCategory && results.sfoCategory === 'gp') {
                   results.pkgType = "Update"
                   /* PATCH */
                   ;
-                  results.pkgExtractRootUx0 = path.join('patch', results.cidTitleId1);
-                  npsType = 'PSV UPDATE';
-                } else {
-                  results.pkgType = "Game"
-                  /* GAME */
+                  npsType = 'PS4 UPDATE';
+                }
+              } else if (results.pkgContentType === 0x1B) {
+                if (results.sfoCategory && results.sfoCategory === 'ac') {
+                  results.pkgType = "DLC"
+                  /* DLC */
                   ;
-                  results.pkgExtractRootUx0 = path.join('app', results.cidTitleId1);
-                  npsType = 'PSV GAME';
-                }
-
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-
-                if (results.titleId) {
-                  updateHash = new fast_sha256_1.HMAC(CONST_PKG3_UPDATE_KEYS[2].key);
-                  data = new TextEncoder().encode("np_" + results.titleId);
-                  updateHash.update(data);
-                  results.titleUpdateUrl = "http://gs-sec.ww.np.dl.playstation.net/pl/np/" + results.titleId + "/" + toHexString(updateHash.digest()) + "/" + results.titleId + "-ver.xml";
-                }
-              } else if (results.pkgContentType === 0x16) {
-                results.platform = "PSV"
-                /* PSV */
-                ;
-                results.pkgType = "DLC"
-                /* DLC */
-                ;
-                results.pkgExtractRootUx0 = path.join('addcont', results.cidTitleId1, results.cidTitleId2);
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PSV DLC';
-
-                if (results.titleId) {
-                  updateHash = new fast_sha256_1.HMAC(CONST_PKG3_UPDATE_KEYS[2].key);
-                  data = new TextEncoder().encode("np_" + results.titleId);
-                  updateHash.update(data);
-                  results.titleUpdateUrl = "http://gs-sec.ww.np.dl.playstation.net/pl/np/" + results.titleId + "/" + toHexString(updateHash.digest()) + "/" + results.titleId + "-ver.xml";
-                }
-              } else if (results.pkgContentType === 0x1F) {
-                results.platform = "PSV"
-                /* PSV */
-                ;
-                results.pkgType = "Theme"
-                /* THEME */
-                ;
-                results.pkgExtractRootUx0 = path.join('theme', results.cidTitleId1 + "-" + results.cidTitleId2); // TODO/FUTURE: bgdl
-                //  - find next free xxxxxxxx dir (hex 00000000-FFFFFFFF)
-                //    Note that Vita has issues with handling more than 32 bgdls at once
-                //  - package sub dir is Results["PKG_CID_TITLE_ID1"] for Game/DLC/Theme
-                //  - create additional d0/d1.pdb and temp.dat files in root dir for Game/Theme
-                //  - create additional f0.pdb for DLC
-                // Results["PKG_EXTRACT_ROOT_UX0"] = os.path.join("bgdl", "t", "xxxxxx")
-                // , )))
-
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PSV THEME';
-              } else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
-                results.platform = "PSM"
-                /* PSM */
-                ;
-                results.pkgType = "Game"
-                /* GAME */
-                ;
-                results.pkgExtractRootUx0 = path.join('psm', results.cidTitleId1);
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-                npsType = 'PSM GAME';
-              } else {
-                // Unknown packages
-                console.error("PKG content type " + results.pkgContentType + ".");
-                results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
-              }
-            }
-          } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
-            results.platform = "PS4"
-            /* PS4 */
-            ;
-
-            if (results.pkgContentType === 0x1A) {
-              if (results.sfoCategory && results.sfoCategory === 'gd') {
-                results.pkgType = "Game"
-                /* GAME */
-                ;
-                npsType = 'PS4 GAME';
-              } else if (results.sfoCategory && results.sfoCategory === 'gp') {
-                results.pkgType = "Update"
-                /* PATCH */
-                ;
-                npsType = 'PS4 UPDATE';
-              }
-            } else if (results.pkgContentType === 0x1B) {
-              if (results.sfoCategory && results.sfoCategory === 'ac') {
-                results.pkgType = "DLC"
-                /* DLC */
-                ;
-                npsType = 'PS4 DLC';
-              }
-            }
-          } else if (magic === CONST_PBP_MAGIC.toString(16)) {
-            // PBP
-            // TODO
-            results.pkgExtractRootCont = results.titleId;
-          }
-
-          results.npsType = npsType;
-          sfoValues = null;
-
-          for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
-            if (!sfoValues) continue; // Media Version
-
-            if (!results.sfoVersion && sfoValues.discVersion) {
-              results.sfoVersion = parseFloat(sfoValues.discVersion);
-            }
-
-            if (!results.sfoVersion && sfoValues.version) {
-              results.sfoVersion = parseFloat(sfoValues.version);
-            } // Application Version
-
-
-            if (!results.sfoAppVer && sfoValues.appVer) {
-              results.sfoAppVer = parseFloat(sfoValues.appVer);
-            } // Firmware PS3
-
-
-            if (!results.sfoMinVerPs3 && sfoValues.ps3SystemVer) {
-              results.sfoMinVerPs3 = parseFloat(sfoValues.ps3SystemVer);
-            } // Firmware PSP
-
-
-            if (!results.sfoMinVerPsp && sfoValues.pspSystemVer) {
-              results.sfoMinVerPsp = parseFloat(sfoValues.pspSystemVer);
-            } // Firmware PS Vita
-
-
-            if (!results.sfoMinVerPsv && sfoValues.psp2DispVer) {
-              results.sfoMinVerPsv = parseFloat(sfoValues.psp2DispVer);
-            } // Firmware PS4
-
-
-            if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
-              results.sfoMinVerPs4 = (sfoValues.systemVer >> 24 & 0xFF) + "." + (sfoValues.systemVer >> 16 & 0xFF);
-            }
-          }
-
-          if (!results.sfoAppVer) {
-            results.sfoAppVer = 0x0; // mandatory value
-          }
-
-          results.sfoMinVer = 0.00; // mandatory value
-
-          if (results.platform) {
-            if (results.platform === "PS3"
-            /* PS3 */
-            ) {
-                if (results.sfoMinVerPs3) {
-                  results.sfoMinVer = results.sfoMinVerPs3;
-                }
-              } else if (results.platform === "PSP"
-            /* PSP */
-            ) {
-                if (results.sfoMinVerPsp) {
-                  results.sfoMinVer = results.sfoMinVerPsp;
-                }
-              } else if (results.platform === "PSV"
-            /* PSV */
-            ) {
-                if (results.sfoMinVerPsv) {
-                  results.sfoMinVer = results.sfoMinVerPsv;
-                }
-              } else if (results.platform === "PS4"
-            /* PS4 */
-            ) {
-                if (results.sfoMinVerPs4) {
-                  results.sfoMinVer = results.sfoMinVerPs4;
+                  npsType = 'PS4 DLC';
                 }
               }
-          }
-
-          jsonOutput = {};
-          jsonOutput.results = {};
-          jsonOutput.results.source = reader.getSource().href;
-          if (results.titleId) jsonOutput.results.titleId = results.titleId;
-          if (results.sfoTitle) jsonOutput.results.title = results.sfoTitle;
-          if (results.sfoTitleRegional) jsonOutput.results.regionalTitle = results.sfoTitleRegional;
-          if (results.contentId) jsonOutput.results.region = results.region;
-          if (results.sfoMinVer) jsonOutput.results.minFw = results.sfoMinVer;
-          if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0) jsonOutput.results.minFwPs3 = results.sfoMinVerPs3;
-          if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0) jsonOutput.results.minFwPsp = results.sfoMinVerPsp;
-          if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0) jsonOutput.results.minFwPsv = results.sfoMinVerPsv;
-          if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0) jsonOutput.results.minFwPs4 = results.sfoMinVerPs4;
-          if (results.sfoSdkVer && results.sfoSdkVer >= 0) jsonOutput.results.sdkVer = results.sfoSdkVer;
-          if (results.sfoCreationDate) jsonOutput.results.creationDate = results.sfoCreationDate;
-          if (results.sfoVersion && results.sfoVersion >= 0) jsonOutput.results.version = results.sfoVersion;
-          if (results.sfoAppVer && results.sfoAppVer >= 0) jsonOutput.results.appVer = results.sfoAppVer;
-          if (results.psxTitleId) jsonOutput.results.psxTitleId = results.psxTitleId;
-          if (results.contentId) jsonOutput.results.contentId = results.contentId;
-
-          if (results.pkgTotalSize && results.pkgTotalSize > 0) {
-            jsonOutput.results.pkgTotalSize = results.pkgTotalSize;
-            jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize);
-          }
-
-          if (results.fileSize) jsonOutput.results.fileSize = results.fileSize;
-          if (results.titleUpdateUrl) jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl;
-          jsonOutput.results.npsType = results.npsType;
-          if (results.platform) jsonOutput.results.pkgPlatform = results.platform;
-          if (results.pkgType) jsonOutput.results.pkgType = results.pkgType;
-          if (results.pkgSubType) jsonOutput.results.pkgSubType = results.pkgSubType;
-          if (results.toolVersion) jsonOutput.results.toolVersion = results.toolVersion;
-
-          if (results.pkgContentId) {
-            jsonOutput.results.pkgContentId = results.pkgContentId;
-            jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1;
-            jsonOutput.results.pkgCidTitleId2 = results.pkgCidTitleId2;
-          }
-
-          if (results.mdTitleId) {
-            jsonOutput.results.mdTitleId = results.mdTitleId;
-
-            if (results.mdTidDiffer) {
-              jsonOutput.results.mdTidDiffer = results.mdTidDiffer;
+            } else if (magic === CONST_PBP_MAGIC.toString(16)) {
+              // PBP
+              // TODO
+              results.pkgExtractRootCont = results.titleId;
             }
-          }
 
-          if (results.pkgSfoOffset) jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset;
-          if (results.pkgSfoOffset) jsonOutput.results.pkgSfoSize = results.pkgSfoSize;
-          if (results.pkgDrmType) jsonOutput.results.pkgDrmType = results.pkgDrmType;
-          if (results.pkgContentType) jsonOutput.results.pkgContentType = results.pkgContentType;
-          if (results.pkgTailSize) jsonOutput.results.pkgTailSize = results.pkgTailSize;
-          if (results.pkgTailSha1) jsonOutput.results.pkgTailSha1 = results.pkgTailSha1;
+            results.npsType = npsType;
+            sfoValues = null;
 
-          if (results.itemsInfo) {
-            jsonOutput.results.itemsInfo = results.itemsInfo;
-            if (jsonOutput.results.itemsInfo.align) delete jsonOutput.results.itemsInfo.align;
-          }
+            for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
+              if (!sfoValues) continue; // Media Version
 
-          if (results.sfoTitleId) jsonOutput.results.sfoTitleId = results.sfoTitleId;
-          if (results.sfoCategory) jsonOutput.results.sfoCategory = results.sfoCategory;
+              if (!results.sfoVersion && sfoValues.discVersion) {
+                results.sfoVersion = parseFloat(sfoValues.discVersion);
+              }
 
-          if (results.sfoContentId) {
-            jsonOutput.results.sfoContentId = results.sfoContentId;
-            jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1;
-            jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2;
-            if (results.sfoCidDiffer) jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer;
-            if (results.sfoTidDiffer) jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer;
-          }
+              if (!results.sfoVersion && sfoValues.version) {
+                results.sfoVersion = parseFloat(sfoValues.version);
+              } // Application Version
 
-          return [2
-          /*return*/
-          , jsonOutput];
-      }
+
+              if (!results.sfoAppVer && sfoValues.appVer) {
+                results.sfoAppVer = parseFloat(sfoValues.appVer);
+              } // Firmware PS3
+
+
+              if (!results.sfoMinVerPs3 && sfoValues.ps3SystemVer) {
+                results.sfoMinVerPs3 = parseFloat(sfoValues.ps3SystemVer);
+              } // Firmware PSP
+
+
+              if (!results.sfoMinVerPsp && sfoValues.pspSystemVer) {
+                results.sfoMinVerPsp = parseFloat(sfoValues.pspSystemVer);
+              } // Firmware PS Vita
+
+
+              if (!results.sfoMinVerPsv && sfoValues.psp2DispVer) {
+                results.sfoMinVerPsv = parseFloat(sfoValues.psp2DispVer);
+              } // Firmware PS4
+
+
+              if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
+                results.sfoMinVerPs4 = (sfoValues.systemVer >> 24 & 0xFF) + "." + (sfoValues.systemVer >> 16 & 0xFF);
+              }
+            }
+
+            if (!results.sfoAppVer) {
+              results.sfoAppVer = 0x0; // mandatory value
+            }
+
+            results.sfoMinVer = 0.00; // mandatory value
+
+            if (results.platform) {
+              if (results.platform === "PS3"
+              /* PS3 */
+              ) {
+                  if (results.sfoMinVerPs3) {
+                    results.sfoMinVer = results.sfoMinVerPs3;
+                  }
+                } else if (results.platform === "PSP"
+              /* PSP */
+              ) {
+                  if (results.sfoMinVerPsp) {
+                    results.sfoMinVer = results.sfoMinVerPsp;
+                  }
+                } else if (results.platform === "PSV"
+              /* PSV */
+              ) {
+                  if (results.sfoMinVerPsv) {
+                    results.sfoMinVer = results.sfoMinVerPsv;
+                  }
+                } else if (results.platform === "PS4"
+              /* PS4 */
+              ) {
+                  if (results.sfoMinVerPs4) {
+                    results.sfoMinVer = results.sfoMinVerPs4;
+                  }
+                }
+            }
+
+            jsonOutput = {};
+            jsonOutput.results = {};
+            jsonOutput.results.source = this.reader.getSource().href;
+            if (results.titleId) jsonOutput.results.titleId = results.titleId;
+            if (results.sfoTitle) jsonOutput.results.title = results.sfoTitle;
+            if (results.sfoTitleRegional) jsonOutput.results.regionalTitle = results.sfoTitleRegional;
+            if (results.contentId) jsonOutput.results.region = results.region;
+            if (results.sfoMinVer) jsonOutput.results.minFw = results.sfoMinVer;
+            if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0) jsonOutput.results.minFwPs3 = results.sfoMinVerPs3;
+            if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0) jsonOutput.results.minFwPsp = results.sfoMinVerPsp;
+            if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0) jsonOutput.results.minFwPsv = results.sfoMinVerPsv;
+            if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0) jsonOutput.results.minFwPs4 = results.sfoMinVerPs4;
+            if (results.sfoSdkVer && results.sfoSdkVer >= 0) jsonOutput.results.sdkVer = results.sfoSdkVer;
+            if (results.sfoCreationDate) jsonOutput.results.creationDate = results.sfoCreationDate;
+            if (results.sfoVersion && results.sfoVersion >= 0) jsonOutput.results.version = results.sfoVersion;
+            if (results.sfoAppVer && results.sfoAppVer >= 0) jsonOutput.results.appVer = results.sfoAppVer;
+            if (results.psxTitleId) jsonOutput.results.psxTitleId = results.psxTitleId;
+            if (results.contentId) jsonOutput.results.contentId = results.contentId;
+
+            if (results.pkgTotalSize && results.pkgTotalSize > 0) {
+              jsonOutput.results.pkgTotalSize = results.pkgTotalSize;
+              jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize);
+            }
+
+            if (results.fileSize) jsonOutput.results.fileSize = results.fileSize;
+            if (results.titleUpdateUrl) jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl;
+            jsonOutput.results.npsType = results.npsType;
+            if (results.platform) jsonOutput.results.pkgPlatform = results.platform;
+            if (results.pkgType) jsonOutput.results.pkgType = results.pkgType;
+            if (results.pkgSubType) jsonOutput.results.pkgSubType = results.pkgSubType;
+            if (results.toolVersion) jsonOutput.results.toolVersion = results.toolVersion;
+
+            if (results.pkgContentId) {
+              jsonOutput.results.pkgContentId = results.pkgContentId;
+              jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1;
+              jsonOutput.results.pkgCidTitleId2 = results.pkgCidTitleId2;
+            }
+
+            if (results.mdTitleId) {
+              jsonOutput.results.mdTitleId = results.mdTitleId;
+
+              if (results.mdTidDiffer) {
+                jsonOutput.results.mdTidDiffer = results.mdTidDiffer;
+              }
+            }
+
+            if (results.pkgSfoOffset) jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset;
+            if (results.pkgSfoOffset) jsonOutput.results.pkgSfoSize = results.pkgSfoSize;
+            if (results.pkgDrmType) jsonOutput.results.pkgDrmType = results.pkgDrmType;
+            if (results.pkgContentType) jsonOutput.results.pkgContentType = results.pkgContentType;
+            if (results.pkgTailSize) jsonOutput.results.pkgTailSize = results.pkgTailSize;
+            if (results.pkgTailSha1) jsonOutput.results.pkgTailSha1 = results.pkgTailSha1;
+
+            if (results.itemsInfo) {
+              jsonOutput.results.itemsInfo = results.itemsInfo;
+              if (jsonOutput.results.itemsInfo.align) delete jsonOutput.results.itemsInfo.align;
+            }
+
+            if (results.sfoTitleId) jsonOutput.results.sfoTitleId = results.sfoTitleId;
+            if (results.sfoCategory) jsonOutput.results.sfoCategory = results.sfoCategory;
+
+            if (results.sfoContentId) {
+              jsonOutput.results.sfoContentId = results.sfoContentId;
+              jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1;
+              jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2;
+              if (results.sfoCidDiffer) jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer;
+              if (results.sfoTidDiffer) jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer;
+            }
+
+            return [2
+            /*return*/
+            , jsonOutput];
+        }
+      });
     });
-  });
-}
+  };
 
-exports["default"] = getInfo;
+  GetInfo.prototype.initReader = function (url) {
+    return __awaiter(this, void 0, void 0, function () {
+      return __generator(this, function (_a) {
+        switch (_a.label) {
+          case 0:
+            if (this.options.baseUrl) {
+              if (!this.options.baseUrl.endsWith('/')) {
+                this.options.baseUrl += '/';
+              }
+
+              this.reader = new PkgReader_1.PkgReader(url, this.options.baseUrl);
+            } else {
+              this.reader = new PkgReader_1.PkgReader(url);
+            }
+
+            if (!url.endsWith('.xml')) return [3
+            /*break*/
+            , 2];
+            return [4
+            /*yield*/
+            , this.reader.setupXml()];
+
+          case 1:
+            _a.sent();
+
+            return [3
+            /*break*/
+            , 6];
+
+          case 2:
+            if (!url.endsWith('.json')) return [3
+            /*break*/
+            , 4];
+            return [4
+            /*yield*/
+            , this.reader.setupJson()];
+
+          case 3:
+            _a.sent();
+
+            return [3
+            /*break*/
+            , 6];
+
+          case 4:
+            if (!(url.startsWith('http:') || url.startsWith('http:'))) return [3
+            /*break*/
+            , 6];
+            return [4
+            /*yield*/
+            , this.reader.setupPkg()];
+
+          case 5:
+            _a.sent();
+
+            _a.label = 6;
+
+          case 6:
+            return [2
+            /*return*/
+            ];
+        }
+      });
+    });
+  };
+
+  return GetInfo;
+}();
+
+exports["default"] = GetInfo;
 
 function parsePkg3Header(dataBuffer, reader) {
   return __awaiter(this, void 0, void 0, function () {
@@ -8190,19 +8229,22 @@ function humanFileSize(bytes, si) {
 
   return bytes.toFixed(1) + ' ' + units[u];
 }
-},{"./PkgReader":"ysax","./PkgAesCounter":"Gk9W","./Slicer":"DUt7","aes-js":"ilr3","path":"hEtP","fast-sha256":"GnoI","buffer":"WXKZ"}],"Focm":[function(require,module,exports) {
+},{"./PkgReader":"ysax","./PkgAesCounter":"Gk9W","./Slicer":"DUt7","fast-sha256":"GnoI","aes-js":"ilr3","path":"hEtP","buffer":"WXKZ"}],"Focm":[function(require,module,exports) {
 "use strict";
 
-var _getinfo = _interopRequireDefault(require("./src/getinfo"));
+var _GetInfo = _interopRequireDefault(require("./src/GetInfo"));
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 document.getElementById("btnRun").addEventListener('click', function () {
-  var info = (0, _getinfo.default)(document.getElementById('url').value);
+  var getinfo = new _GetInfo.default({
+    baseUrl: 'http://proxy.nopaystation.com'
+  });
+  var info = getinfo.pkg(document.getElementById('url').value);
   info.then(function (result) {
     document.getElementById('results').innerText = JSON.stringify(result, null, 1);
     console.log(result);
   });
 });
-},{"./src/getinfo":"N2gg"}]},{},["Focm"], null)
+},{"./src/GetInfo":"UQvq"}]},{},["Focm"], null)
 //# sourceMappingURL=/index.map
