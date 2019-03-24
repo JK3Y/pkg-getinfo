@@ -6,6 +6,5 @@ node_modules
 .DS_Store
 out
 gen
-dist
 .cache
 # Created by .ignore support plugin (hsz.mobi)

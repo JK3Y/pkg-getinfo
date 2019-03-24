@@ -2,7 +2,7 @@
   "name": "pkg-getinfo",
   "version": "0.0.9",
   "description": "A Node.js/Browser module that obtains useful metadata from Playstation PKG URLs",
-  "main": "index.js",
+  "main": "src/getinfo.ts",
   "scripts": {
     "start": "nodemon index.js",
     "build": "tsc src/*.ts && parcel build index.js"
