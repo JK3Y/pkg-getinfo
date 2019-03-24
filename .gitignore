@@ -7,4 +7,5 @@ node_modules
 out
 gen
 dist
+.cache
 # Created by .ignore support plugin (hsz.mobi)
