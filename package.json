@@ -1,16 +1,31 @@
 {
   "name": "pkg-getinfo",
-  "version": "0.0.8",
-  "description": "A Node.js module that obtains useful metadata from Playstation PKG URLs",
+  "version": "0.0.9",
+  "description": "A Node.js/Browser module that obtains useful metadata from Playstation PKG URLs",
   "main": "index.js",
   "scripts": {
     "start": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc src/*.ts && parcel build index.js"
   },
   "author": "JK3Y",
   "license": "ISC",
   "dependencies": {
-    "node-fetch": "^2.2.0"
+    "aes-js": "^3.1.2",
+    "axios": "^0.18.0",
+    "fast-sha256": "^1.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "^11.11.6",
+    "eslint": "^5.12.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "prettier": "^1.16.4",
+    "tslint": "^5.13.1",
+    "tslint-config-airbnb": "^5.11.1",
+    "tslint-config-prettier": "^1.18.0",
+    "typescript": "^3.3.3333"
+  }
 }

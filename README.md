@@ -1,35 +1,58 @@
 # pkg-getinfo
 
-A Node.js module that obtains useful metadata from Playstation PKG URLs
+A TypeScript port of [PSN_get_pkg_info][], built for the browser.
 
-Works on PS3, PSM, PSX, and Vita PKGs
+This module obtains useful metadata from Playstation PKG URLs.
 
-### Usage
+Compatible with PS3, PSM, PSX, Vita, and PSP PKGs.
+ 
+## Usage
 ```
-let info = await getinfo(url)
+import getInfo from 'pkg-getinfo'
+let info = await getInfo(url)
 console.log(info)
 
  /*******
  * Results
  ********/
- { type: 'VITA APP',
-  consoleType: 'PSV',
-  fileType: 'GAMES',
-  titleId: 'PCSA00035',
-  region: 'US',
-  contentId: 'UP9000-PCSA00035_00-TABLESOCCERUS000',
-  size: 191593184,
-  prettySize: '191.6 MB',
-  name: 'Table Soccer',
-  requiredFw: 1.52,
-  appVersion: 1,
-  pkg_psxtitleid: undefined,
-  pkgUrl: 'http://ares.dl.playstation.net/cdn/UP9000/PCSA00035_00/LQwFfOZQqsuSnLXTzuQYdqvsrekHQRrbEXbpXPRbjTsmgrrUNTcNQkstyvZTmxnWRiYfahtgXWmcLvjrwjpideOxvbYsZdXjLSOcn.pkg'}
+ { 
+    contentId: "JP0103-PCSG00347_00-APP0000000000000"
+    creationDate: "20140214"
+    itemsInfo: {ofs: 0, size: 4800, entriesSize: 2496, namesOfs: 2496, namesSize: 2296, …}
+    npsType: "PSV GAME"
+    pkgCidTitleId1: "PCSG00347_00-APP"
+    pkgCidTitleId2: "APP0000000000000"
+    pkgContentId: "JP0103-PCSG00347_00-APP0000000000000"
+    pkgContentType: 21
+    pkgDrmType: 2
+    pkgPlatform: "PSV"
+    pkgSfoOffset: 3088
+    pkgSfoSize: 1328
+    pkgTailSha1: Uint8Array []
+    pkgTotalSize: 2367571616
+    pkgType: "Game"
+    prettySize: "2.2 GiB"
+    region: "JP"
+    sdkVer: 3
+    sfoCategory: "gd"
+    sfoCidDiffer: true
+    sfoCidTitleId1: "PCSG00347"
+    sfoCidTitleId2: "APP0000000000000"
+    sfoContentId: "JP0103-PCSG00347_00-APP0000000000000"
+    sfoTidDiffer: true
+    sfoTitleId: "PCSG00347"
+    source: "http://proxy.nopaystation.com/http://zeus.dl.playstation.net/cdn/JP0103/PCSG00347_00/aaTtYWXKardsZAvtSKHMFIKXGlxlLXDugjEHQGGzCSxipwtmECgHKjFbbBFRIBOEjKGVgRivgBdEoYrGJRQTMNagvkihVOQuXRcXh.pkg"
+    title: "アーシャのアトリエ Ｐｌｕｓ ～黄昏の大地の錬金術士～"
+    titleId: "PCSG00347"
+    titleUpdateUrl: "http://gs-sec.ww.np.dl.playstation.net/pl/np/PCSG00347/507299147b64a90f5f940051c902d70579d235e1947c19cc064da6ac88bdf532/PCSG00347-ver.xml"
+ }
  ```
 
-### Thanks
-* [AnalogMan151][]'s very useful [VitaPKG\_GetInfo][]
-
+## Thanks
+* [WindSurfer1122][] for the new and improved [PSN_get_pkg_info][]
+* [AnalogMan151][] for the original [VitaPKG\_GetInfo][]
 
 [AnalogMan151]: https://github.com/AnalogMan151
 [VitaPKG\_GetInfo]: https://github.com/AnalogMan151/VitaPKG_GetInfo
+[WindSurfer1122]: https://github.com/windsurfer1122
+[PSN_get_pkg_info]: https://github.com/windsurfer1122/PSN_get_pkg_info

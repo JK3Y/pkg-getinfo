@@ -1,0 +1,61 @@
+Arguments: 
+  /usr/local/Cellar/node/11.10.0/bin/node /usr/local/Cellar/yarn/1.13.0/libexec/bin/yarn.js
+
+PATH: 
+  /usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Applications/VMware Fusion.app/Contents/Public:/usr/local/MacGPG2/bin:/Applications/Wireshark.app/Contents/MacOS:/Users/jamador/dev/Node/pkg-getinfo/node_modules/.bin
+
+Yarn version: 
+  1.13.0
+
+Node version: 
+  11.10.0
+
+Platform: 
+  darwin x64
+
+Trace: 
+  SyntaxError: /Users/jamador/dev/Node/pkg-getinfo/package.json: Unexpected token } in JSON at position 267
+      at JSON.parse (<anonymous>)
+      at /usr/local/Cellar/yarn/1.13.0/libexec/lib/cli.js:1625:59
+      at Generator.next (<anonymous>)
+      at step (/usr/local/Cellar/yarn/1.13.0/libexec/lib/cli.js:304:30)
+      at /usr/local/Cellar/yarn/1.13.0/libexec/lib/cli.js:315:13
+
+npm manifest: 
+  {
+    "name": "pkg-getinfo",
+    "version": "0.0.9",
+    "description": "A Node.js module that obtains useful metadata from Playstation PKG URLs",
+    "main": "index.js",
+    "scripts": {
+      "start": "nodemon index.js",
+      "build": "tsc src/*.ts && parcel build index.js",
+    },
+    "author": "JK3Y",
+    "license": "ISC",
+    "dependencies": {
+      "aes-js": "^3.1.2",
+      "axios": "^0.18.0",
+      "fast-sha256": "^1.1.0"
+    },
+    "devDependencies": {
+      "@types/node": "^11.11.6",
+      "eslint": "^5.12.0",
+      "eslint-config-standard": "^12.0.0",
+      "eslint-plugin-import": "^2.14.0",
+      "eslint-plugin-node": "^8.0.1",
+      "eslint-plugin-promise": "^4.0.1",
+      "eslint-plugin-standard": "^4.0.0",
+      "prettier": "^1.16.4",
+      "tslint": "^5.13.1",
+      "tslint-config-airbnb": "^5.11.1",
+      "tslint-config-prettier": "^1.18.0",
+      "typescript": "^3.3.3333"
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
