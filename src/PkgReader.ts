@@ -99,6 +99,8 @@ export class PkgReader {
         readBufferSize = this.bufferSize - readOffset
       }
 
+      console.debug(`[INPUT] Get offset ${readOffset} size ${readBufferSize}/${size} bytes from buffer`)
+
       result.push(this.buffer.slice(readOffset, readOffset + readBufferSize))
       // result = Buffer.concat(result, this.buffer.slice(readOffset, readOffset + readBufferSize));
 
