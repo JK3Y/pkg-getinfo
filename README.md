@@ -4,12 +4,15 @@ A TypeScript port of [PSN_get_pkg_info][], built for the browser.
 
 This module obtains useful metadata from Playstation PKG URLs.
 
-Compatible with PS3, PSM, PSX, Vita, and PSP PKGs.
+Compatible with PSM, PSX, Vita, and PSP PKGs.
  
 ## Install
 ```
 yarn add https://github.com/JK3Y/pkg-getinfo.git
 ```
+
+## Limitations
+Unable to parse PS4 packages yet.
 
 ## Usage
 ```
@@ -49,7 +52,7 @@ console.log(info)
     sfoContentId: "JP0103-PCSG00347_00-APP0000000000000"
     sfoTidDiffer: true
     sfoTitleId: "PCSG00347"
-    source: "http://proxy.nopaystation.com/http://zeus.dl.playstation.net/cdn/JP0103/PCSG00347_00/aaTtYWXKardsZAvtSKHMFIKXGlxlLXDugjEHQGGzCSxipwtmECgHKjFbbBFRIBOEjKGVgRivgBdEoYrGJRQTMNagvkihVOQuXRcXh.pkg"
+    source: "http://proxy.url.to.bypass.cors/http://zeus.dl.playstation.net/cdn/JP0103/PCSG00347_00/aaTtYWXKardsZAvtSKHMFIKXGlxlLXDugjEHQGGzCSxipwtmECgHKjFbbBFRIBOEjKGVgRivgBdEoYrGJRQTMNagvkihVOQuXRcXh.pkg"
     title: "アーシャのアトリエ Ｐｌｕｓ ～黄昏の大地の錬金術士～"
     titleId: "PCSG00347"
     titleUpdateUrl: "http://gs-sec.ww.np.dl.playstation.net/pl/np/PCSG00347/507299147b64a90f5f940051c902d70579d235e1947c19cc064da6ac88bdf532/PCSG00347-ver.xml"
