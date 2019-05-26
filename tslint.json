@@ -44,7 +44,10 @@
         "prefer-const": false,
         "no-increment-decrement": false,
         "max-line-length": false,
-        "function-paren-newline": ["error", "never"]
+//        "function-paren-newline": ["error", "never"],
+        "brace-style": ["error", "1bts"],
+        "max-classes-per-file": false,
+        "array-element-newline": ["error", "never"]
     },
     "rulesDirectory": []
 }
