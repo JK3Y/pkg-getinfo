@@ -39,7 +39,8 @@ var PkgReader_1 = require("./PkgReader");
 var PkgAesCounter_1 = require("./PkgAesCounter");
 var Slicer_1 = require("./Slicer");
 var fast_sha256_1 = require("fast-sha256");
-var aesjs = require("aes-js");
+// import * as aesjs from 'aes-js'
+var crypto = require("crypto");
 var path = require("path");
 var PBPItemEntry = /** @class */ (function () {
     function PBPItemEntry(init) {
@@ -106,7 +107,8 @@ var CONST_PKG3_CONTENT_KEYS = [
 ];
 var CONST_PKG3_UPDATE_KEYS = {
     2: {
-        key: new Uint8Array([0xE5, 0xE2, 0x78, 0xAA, 0x1E, 0xE3, 0x40, 0x82, 0xA0, 0x88, 0x27, 0x9C, 0x83, 0xF9, 0xBB, 0xC8, 0x06, 0x82, 0x1C, 0x52, 0xF2, 0xAB, 0x5D, 0x2B, 0x4A, 0xBD, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14]),
+        key: new Uint8Array([0xe5, 0xe2, 0x78, 0xaa, 0x1e, 0xe3, 0x40, 0x82, 0xa0, 0x88, 0x27, 0x9c, 0x83, 0xf9, 0xbb, 0xc8, 0x06, 0x82, 0x1c, 0x52, 0xf2, 0xab, 0x5d, 0x2b, 0x4a, 0xbd, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14]),
+        // key: '5eJ4qh7jQIKgiCecg/m7yAaCHFLyq10rSr2ZVFA1URQ='
         desc: 'PSV'
     }
 };
@@ -185,12 +187,12 @@ var GetInfo = /** @class */ (function () {
     }
     GetInfo.prototype.pkg = function (url) {
         return __awaiter(this, void 0, void 0, function () {
-            var sfoBytes, pkgHeader, pkgExtHeader, pkgMetadata, pkgSfoValues, pkgItemEntries, pkgFileTable, pkgFileTableMap, itemSfoValues, pbpHeader, pbpItemEntries, pbpSfoValues, npsType, mainSfoValues, results, pkg, _a, e_1, magic, _b, _c, _d, _e, parsedHeader, parsedItems, retrieveEncryptedParamSfo, _i, pkgItemEntries_1, itemEntry, itemIndex, sfoMagic, pbpBytes, parsedPBP, _f, e_2, parsedPbpHeader, r, _g, _h, language, key, _j, REPLACE_LIST_1, replaceChars, i, replaceChar, _k, _l, language, key, _m, REPLACE_LIST_2, replaceChars, i, replaceChar, updateHash, data, updateHash, data, sfoValues, jsonOutput;
-            return __generator(this, function (_o) {
-                switch (_o.label) {
+            var sfoBytes, pkgHeader, pkgExtHeader, pkgMetadata, pkgSfoValues, pkgItemEntries, pkgFileTable, pkgFileTableMap, itemSfoValues, pbpHeader, pbpItemEntries, pbpSfoValues, npsType, mainSfoValues, results, pkg, _a, e_1, magic, _b, _c, _d, _e, parsedHeader, parsedItems, retrieveEncryptedParamSfo, _i, pkgItemEntries_1, itemEntry, itemIndex, pbpBytes, parsedPBP, _f, e_2, parsedPbpHeader, r, _g, _h, language, key, _j, REPLACE_LIST_1, replaceChars, i, replaceChar, _k, _l, language, key, _m, REPLACE_LIST_2, replaceChars, i, replaceChar, _o, pkgItemEntries_2, itemEntry, updateHash, data, updateHash, data, sfoValues, jsonOutput;
+            return __generator(this, function (_p) {
+                switch (_p.label) {
                     case 0: return [4 /*yield*/, this.initReader(url)];
                     case 1:
-                        _o.sent();
+                        _p.sent();
                         pkgHeader = null;
                         pkgExtHeader = null;
                         pkgMetadata = null;
@@ -209,23 +211,23 @@ var GetInfo = /** @class */ (function () {
                             headBytes: Buffer.from([]),
                             tailBytes: Buffer.from([])
                         };
-                        _o.label = 2;
+                        _p.label = 2;
                     case 2:
-                        _o.trys.push([2, 4, , 5]);
+                        _p.trys.push([2, 4, , 5]);
                         _a = pkg;
                         return [4 /*yield*/, this.reader.read(0, 4)];
                     case 3:
-                        _a.headBytes = _o.sent();
+                        _a.headBytes = _p.sent();
                         this.reader.close();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_1 = _o.sent();
+                        e_1 = _p.sent();
                         console.error(e_1);
                         this.reader.close();
                         throw new Error("Could not get PKG magic at offset 0 with size 4 from " + this.reader.getSource());
                     case 5:
                         magic = pkg.headBytes.toString('hex');
-                        if (!(magic === CONST_PKG3_MAGIC.toString(16))) return [3 /*break*/, 25];
+                        if (!(magic === CONST_PKG3_MAGIC.toString(16))) return [3 /*break*/, 27];
                         pkg.itemsInfoBytes = {};
                         pkg.itemBytes = {};
                         _b = pkg;
@@ -234,11 +236,11 @@ var GetInfo = /** @class */ (function () {
                         return [4 /*yield*/, this.reader.read(4, CONST_PKG3_HEADER_SIZE - 4)];
                     case 6:
                         _b.headBytes = _d.apply(_c, [_e.concat([
-                                _o.sent()
+                                _p.sent()
                             ])]);
                         return [4 /*yield*/, parsePkg3Header(pkg.headBytes, this.reader)];
                     case 7:
-                        parsedHeader = _o.sent();
+                        parsedHeader = _p.sent();
                         pkgHeader = parsedHeader.pkgHeader;
                         pkgExtHeader = parsedHeader.pkgExtHeader;
                         pkgMetadata = parsedHeader.pkgMetadata;
@@ -248,7 +250,7 @@ var GetInfo = /** @class */ (function () {
                         }
                         if (pkgHeader.contentId) {
                             results.pkgContentId = pkgHeader.contentId;
-                            results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16);
+                            results.pkgCidTitleId1 = pkgHeader.contentId.substring(7, 16);
                             results.pkgCidTitleId2 = pkgHeader.contentId.substr(20);
                         }
                         if (pkgMetadata[0x0e]) {
@@ -264,7 +266,21 @@ var GetInfo = /** @class */ (function () {
                         if (pkgMetadata[0x06]) {
                             results.mdTitleId = pkgMetadata[0x06].value;
                         }
-                        if (!results.pkgSfoOffset) return [3 /*break*/, 10];
+                        if (pkgMetadata[0x0d]) {
+                            // a) offset inside encrypted data
+                            if (pkgMetadata[0x0d].ofs !== 0) {
+                                console.error("Items Info start offset inside encrypted data " + pkgMetadata[0x0d].ofs + " <> 0x0.");
+                                console.error('Please report this unknown case at https://github.com/windsurfer1122/PSN_get_pkg_info');
+                            }
+                            // b) size
+                            if (pkgMetadata[0x0d].size <
+                                pkgHeader.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE) {
+                                console.error("Items Info size " + pkgMetadata[0x0d].size + " is to small for " + pkgHeader.itemCnt + " Item Entries with a total size of " + pkgHeader.itemCnt *
+                                    CONST_PKG3_ITEM_ENTRY_SIZE + ".");
+                                console.error('Please report this unknown case at https://github.com/windsurfer1122/PSN_get_pkg_info');
+                            }
+                        }
+                        if (!(results.pkgSfoOffset && results.pkgSfoOffset > 0)) return [3 /*break*/, 10];
                         return [4 /*yield*/, retrieveParamSfo(pkg, results, this.reader)
                             // const sfoMagic = sfoBytes.readUInt32BE(0)
                             // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
@@ -274,49 +290,48 @@ var GetInfo = /** @class */ (function () {
                             // }
                         ];
                     case 8:
-                        sfoBytes = _o.sent();
-                        // const sfoMagic = sfoBytes.readUInt32BE(0)
-                        // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
-                        // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-                        //   this.reader.close()
-                        //   throw new Error(`Not a known PARAM.SFO structure`)
-                        // }
+                        sfoBytes = _p.sent();
+                        if (!sfoBytes) return [3 /*break*/, 10];
+                        // Check for known PARAM.SFO data
                         checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
                         return [4 /*yield*/, parseSfo(sfoBytes)];
                     case 9:
-                        pkgSfoValues = _o.sent();
-                        _o.label = 10;
+                        // Process PARAM.SFO data
+                        pkgSfoValues = _p.sent();
+                        _p.label = 10;
                     case 10:
                         if (!(pkgHeader.keyIndex !== null)) return [3 /*break*/, 12];
                         return [4 /*yield*/, parsePkg3ItemsInfo(pkgHeader, pkgMetadata, this.reader)];
                     case 11:
-                        parsedItems = _o.sent();
+                        parsedItems = _p.sent();
                         pkg.itemsInfoBytes = parsedItems.itemsInfoBytes;
                         pkgItemEntries = parsedItems.pkgItemEntries;
-                        results.itemsInfo = pkg.itemsInfoBytes;
+                        results.itemsInfo = Object.assign({}, pkg.itemsInfoBytes);
                         if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
                             delete results.itemsInfo[CONST_DATATYPE_AS_IS];
                         }
                         if (results.itemsInfo[CONST_DATATYPE_DECRYPTED]) {
                             delete results.itemsInfo[CONST_DATATYPE_DECRYPTED];
                         }
-                        _o.label = 12;
+                        _p.label = 12;
                     case 12:
-                        if (!pkgItemEntries) return [3 /*break*/, 20];
+                        if (!(pkgItemEntries !== null)) return [3 /*break*/, 22];
                         retrieveEncryptedParamSfo = false;
                         if (pkgHeader.paramSfo) {
                             retrieveEncryptedParamSfo = true;
                         }
                         _i = 0, pkgItemEntries_1 = pkgItemEntries;
-                        _o.label = 13;
+                        _p.label = 13;
                     case 13:
-                        if (!(_i < pkgItemEntries_1.length)) return [3 /*break*/, 20];
+                        if (!(_i < pkgItemEntries_1.length)) return [3 /*break*/, 22];
                         itemEntry = pkgItemEntries_1[_i];
                         if (!itemEntry.name || itemEntry.dataSize <= 0) {
-                            return [3 /*break*/, 19];
+                            return [3 /*break*/, 21];
                         }
                         itemIndex = itemEntry.index;
-                        if (!(retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo)) return [3 /*break*/, 15];
+                        if (!(retrieveEncryptedParamSfo &&
+                            itemEntry.name === pkgHeader.paramSfo)) return [3 /*break*/, 16];
+                        console.debug(">>>>> " + itemEntry.name + " (from encrypted data)");
                         // Retrieve PARAM.SFO
                         pkg.itemBytes[itemIndex] = {};
                         pkg.itemBytes[itemIndex].add = true;
@@ -324,113 +339,115 @@ var GetInfo = /** @class */ (function () {
                             // Process PARAM.SFO
                         ];
                     case 14:
-                        _o.sent();
+                        _p.sent();
                         // Process PARAM.SFO
                         sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + itemEntry.dataSize);
-                        sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16);
-                        // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-                        //   this.reader.close()
-                        //   throw new Error(`Not a known PARAM.SFO structure`)
-                        // }
+                        // Check for known PARAM.SFO data
                         checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
-                        // Process PARAM.SFO data
-                        itemSfoValues = parseSfo(sfoBytes);
-                        return [3 /*break*/, 19];
+                        return [4 /*yield*/, parseSfo(sfoBytes)];
                     case 15:
-                        if (!CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) return [3 /*break*/, 19];
+                        // Process PARAM.SFO data
+                        itemSfoValues = _p.sent();
+                        return [3 /*break*/, 21];
+                    case 16:
+                        if (!CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) return [3 /*break*/, 21];
                         // Retrieve PBP header
                         pkg.itemBytes[itemIndex] = {};
                         pkg.itemBytes[itemIndex].add = true;
                         return [4 /*yield*/, processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex], Math.min(2048, itemEntry.dataSize))
                             // Process PBP header
                         ];
-                    case 16:
-                        _o.sent();
+                    case 17:
+                        _p.sent();
                         pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE);
                         return [4 /*yield*/, parsePbpHeader(pbpBytes, itemEntry.dataSize)];
-                    case 17:
-                        parsedPBP = _o.sent();
+                    case 18:
+                        parsedPBP = _p.sent();
                         pbpHeader = parsedPBP.pbpHeaderFields;
                         pbpItemEntries = parsedPBP.itemEntries;
                         return [4 /*yield*/, processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex], pbpHeader.iconPngOfs)
                             // Process PARAM.SFO
                         ];
-                    case 18:
-                        _o.sent();
+                    case 19:
+                        _p.sent();
                         // Process PARAM.SFO
                         sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs, itemEntry.align.ofsDelta +
                             pbpItemEntries[0].dataOfs +
                             pbpItemEntries[0].dataSize);
                         // Check for known PARAM.SFO data
                         checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
+                        return [4 /*yield*/, parseSfo(sfoBytes)];
+                    case 20:
                         // Process PARAM.SFO data
-                        pbpSfoValues = parseSfo(sfoBytes);
-                        _o.label = 19;
-                    case 19:
+                        pbpSfoValues = _p.sent();
+                        _p.label = 21;
+                    case 21:
                         _i++;
                         return [3 /*break*/, 13];
-                    case 20:
+                    case 22:
                         if (pkgSfoValues === null && itemSfoValues !== null) {
                             pkgSfoValues = itemSfoValues;
                             itemSfoValues = null;
                         }
                         mainSfoValues = pkgSfoValues;
-                        _o.label = 21;
-                    case 21:
-                        _o.trys.push([21, 23, , 24]);
-                        _f = pkg;
-                        return [4 /*yield*/, this.reader.read(pkgHeader.dataOffset + pkgHeader.dataSize, pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize))];
-                    case 22:
-                        _f.tailBytes = _o.sent();
-                        return [3 /*break*/, 24];
+                        _p.label = 23;
                     case 23:
-                        e_2 = _o.sent();
-                        this.reader.close();
-                        console.error("Could not get PKG3 unencrypted tail at offset " + (pkgHeader.dataOffset +
-                            pkgHeader.dataSize) + " size " + (pkgHeader.totalSize -
-                            (pkgHeader.dataOffset +
-                                pkgHeader.dataSize)) + " from " + this.reader.getSource());
-                        return [3 /*break*/, 24];
+                        _p.trys.push([23, 25, , 26]);
+                        _f = pkg;
+                        return [4 /*yield*/, this.reader.read(pkgHeader.dataOfs + pkgHeader.dataSize, pkgHeader.totalSize - (pkgHeader.dataOfs + pkgHeader.dataSize))];
                     case 24:
-                        if (pkg.tailBytes) {
-                            // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
-                            results.pkgTailSize = pkg.tailBytes.length;
-                            results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c);
-                        }
-                        return [3 /*break*/, 31];
+                        _f.tailBytes = _p.sent();
+                        return [3 /*break*/, 26];
                     case 25:
-                        if (!(magic === CONST_PKG4_MAGIC.toString(16))) return [3 /*break*/, 26];
+                        e_2 = _p.sent();
+                        this.reader.close();
+                        console.error("Could not get PKG3 unencrypted tail at offset " + (pkgHeader.dataOfs +
+                            pkgHeader.dataSize) + " size " + (pkgHeader.totalSize -
+                            (pkgHeader.dataOfs +
+                                pkgHeader.dataSize)) + " from " + this.reader.getSource());
+                        return [3 /*break*/, 26];
+                    case 26:
+                        if (pkg.tailBytes) {
+                            // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only the first file of a multi-part package
+                            results.pkgTailSize = pkg.tailBytes.length;
+                            results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, pkg.tailBytes.length - 0x0c);
+                        }
+                        return [3 /*break*/, 33];
+                    case 27:
+                        if (!(magic === CONST_PKG4_MAGIC.toString(16))) return [3 /*break*/, 28];
                         // PS4
                         console.error('PS4 support not yet added.');
-                        return [3 /*break*/, 31];
-                    case 26:
-                        if (!(magic === CONST_PBP_MAGIC.toString(16))) return [3 /*break*/, 31];
+                        return [3 /*break*/, 33];
+                    case 28:
+                        if (!(magic === CONST_PBP_MAGIC.toString(16))) return [3 /*break*/, 33];
                         return [4 /*yield*/, parsePbpHeader(pkg.headBytes, results.fileSize, this.reader)];
-                    case 27:
-                        parsedPbpHeader = _o.sent();
+                    case 29:
+                        parsedPbpHeader = _p.sent();
                         pbpHeader = parsedPbpHeader.pbpHeaderFields;
                         pbpItemEntries = parsedPbpHeader.itemEntries;
-                        if (!(pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0)) return [3 /*break*/, 31];
+                        if (!(pbpItemEntries.length >= 1 && pbpItemEntries[0].dataSize > 0)) return [3 /*break*/, 33];
                         results.pkgSfoOffset = pbpItemEntries[0].dataOfs;
                         results.pkgSfoSize = pbpItemEntries[0].dataSize;
                         return [4 /*yield*/, retrieveParamSfo(pkg, results, this.reader)
                             // Process PARAM.SFO if present
                         ];
-                    case 28:
+                    case 30:
                         // Retrieve PBP PARAM.SFO from unencrypted data
-                        sfoBytes = _o.sent();
-                        if (!sfoBytes) return [3 /*break*/, 30];
+                        sfoBytes = _p.sent();
+                        if (!sfoBytes) return [3 /*break*/, 32];
                         // Check for known PARAM.SFO data
                         checkSfoMagic(sfoBytes.slice(0, 4), this.reader);
                         return [4 /*yield*/, parseSfo(sfoBytes)];
-                    case 29:
-                        // Process PARAM.SFO data
-                        pbpSfoValues = _o.sent();
-                        _o.label = 30;
-                    case 30:
-                        mainSfoValues = pbpSfoValues;
-                        _o.label = 31;
                     case 31:
+                        // Process PARAM.SFO data
+                        pbpSfoValues = _p.sent();
+                        console.log('pbpSfoValues');
+                        console.log(pbpSfoValues);
+                        _p.label = 32;
+                    case 32:
+                        mainSfoValues = pbpSfoValues;
+                        _p.label = 33;
+                    case 33:
                         if (results.pkgContentId) {
                             results.contentId = results.pkgContentId;
                             results.cidTitleId1 = results.contentId.substring(7, 16);
@@ -447,6 +464,8 @@ var GetInfo = /** @class */ (function () {
                         }
                         // Process main PARAM.SFO if present
                         if (mainSfoValues) {
+                            console.debug('mainSfoValues');
+                            console.debug(mainSfoValues);
                             if (mainSfoValues.DISK_ID) {
                                 results.sfoTitleId = mainSfoValues.DISK_ID;
                             }
@@ -502,6 +521,7 @@ var GetInfo = /** @class */ (function () {
                             results.region = r.region;
                             results.languages = r.languages;
                             // if (results.languages === null) {
+                            // results.languages
                             // TODO: line 2831/2832
                             // }
                         }
@@ -542,7 +562,7 @@ var GetInfo = /** @class */ (function () {
                                 .replace('【体験版】', '(DEMO)')
                                 .replace('(体験版)', '(DEMO)')
                                 .replace('体験版', '(DEMO)');
-                            results.sfoTitle = results.sfoTitle.replace(/(demo)/ui, '(DEMO)');
+                            results.sfoTitle = results.sfoTitle.replace(/(demo)/iu, '(DEMO)');
                             results.sfoTitle = results.sfoTitle.replace(/(^|[^a-z(]{1})demo([^a-z)]{1}|$)/iu, '$1(DEMO)$2');
                             results.sfoTitle = results.sfoTitle.replace(/(  )/iu, ' ');
                         }
@@ -581,22 +601,36 @@ var GetInfo = /** @class */ (function () {
                         if (magic === CONST_PKG3_MAGIC.toString(16)) {
                             if (results.pkgContentType) {
                                 // PS3 packages
-                                if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
+                                if (results.pkgContentType === 0x4 || results.pkgContentType === 0xb) {
                                     results.platform = "PS3" /* PS3 */;
-                                    if (pkgMetadata[0x0B]) {
+                                    if (pkgMetadata[0x0b]) {
                                         results.pkgType = "Update" /* PATCH */;
                                         npsType = 'PS3 UPDATE';
                                     }
                                     else {
                                         results.pkgType = "DLC" /* DLC */;
                                         npsType = 'PS3 DLC';
+                                        if (!results.sfoTitle && pkgMetadata[0x03] && pkgMetadata[0x03].value === 0x0000048c) {
+                                            for (_o = 0, pkgItemEntries_2 = pkgItemEntries; _o < pkgItemEntries_2.length; _o++) {
+                                                itemEntry = pkgItemEntries_2[_o];
+                                                if (!itemEntry.name || itemEntry.dataSize <= 0) {
+                                                    continue;
+                                                }
+                                                if (itemEntry.name.endsWith('.edat') && !itemEntry.name.endsWith('p3t.edat')) {
+                                                    results.sfoTitle = results.titleId + " - Unlock Key";
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     }
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                     if (results.titleId) {
                                         results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
                                     }
                                 }
-                                else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
+                                else if (results.pkgContentType === 0x5 ||
+                                    results.pkgContentType === 0x13 ||
+                                    results.pkgContentType === 0x14) {
                                     results.platform = "PS3" /* PS3 */;
                                     results.pkgType = "Game" /* GAME */;
                                     if (results.pkgContentType === 0x14) {
@@ -608,23 +642,26 @@ var GetInfo = /** @class */ (function () {
                                         results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
                                     }
                                 }
-                                else if (results.pkgContentType === 0x9) { // PS3/PSP Themes
+                                else if (results.pkgContentType === 0x9) {
+                                    // PS3/PSP Themes
                                     results.platform = "PS3" /* PS3 */;
                                     results.pkgType = "Theme" /* THEME */;
                                     npsType = 'PS3 THEME';
-                                    if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
+                                    if (pkgMetadata[0x03] &&
+                                        buf2Int(pkgMetadata[0x03].value) === 0x0000020c) {
                                         results.platform = "PSP" /* PSP */;
                                         npsType = 'PSP THEME';
                                     }
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                 }
-                                else if (results.pkgContentType === 0xD) {
+                                else if (results.pkgContentType === 0xd) {
                                     results.platform = "PS3" /* PS3 */;
                                     results.pkgType = "Avatar" /* AVATAR */;
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                     npsType = 'PS3 AVATAR';
                                 }
-                                else if (results.pkgContentType === 0x12) { // PS2/SFO_CATEGORY = 2P
+                                else if (results.pkgContentType === 0x12) {
+                                    // PS2/SFO_CATEGORY = 2P
                                     results.platform = "PS3" /* PS3 */;
                                     results.pkgType = "Game" /* GAME */;
                                     results.pkgSubType = "PS2 Classic" /* PS2 */;
@@ -634,7 +671,9 @@ var GetInfo = /** @class */ (function () {
                                         results.Ps2TitleId = results.sfoTitleId;
                                     }
                                 }
-                                else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) { // PSX packages
+                                else if (results.pkgContentType === 0x1 ||
+                                    results.pkgContentType === 0x6) {
+                                    // PSX packages
                                     results.platform = "PSX" /* PSX */;
                                     results.pkgType = "Game" /* GAME */;
                                     results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1);
@@ -652,7 +691,10 @@ var GetInfo = /** @class */ (function () {
                                         results.psxTitleId = results.mdTitleId;
                                     }
                                 }
-                                else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
+                                else if (results.pkgContentType === 0x7 ||
+                                    results.pkgContentType === 0xe ||
+                                    results.pkgContentType === 0xf ||
+                                    results.pkgContentType === 0x10) {
                                     results.platform = "PSP" /* PSP */;
                                     if (pbpSfoValues && pbpSfoValues.category) {
                                         if (pbpSfoValues.category === 'PG') {
@@ -664,7 +706,8 @@ var GetInfo = /** @class */ (function () {
                                             npsType = 'PSP DLC';
                                         }
                                     }
-                                    if (!results.pkgType) { // Normally CATEGORY === EG
+                                    if (!results.pkgType) {
+                                        // Normally CATEGORY === EG
                                         results.pkgType = "Game" /* GAME */;
                                         npsType = 'PSP GAME';
                                     }
@@ -678,10 +721,10 @@ var GetInfo = /** @class */ (function () {
                                             results.pkgSubType = "PC Engine" /* PSP_PC_ENGINE */;
                                         }
                                     }
-                                    else if (results.pkgContentType === 0xE) {
+                                    else if (results.pkgContentType === 0xe) {
                                         results.pkgSubType = "Go" /* PSP_GO */;
                                     }
-                                    else if (results.pkgContentType === 0xF) {
+                                    else if (results.pkgContentType === 0xf) {
                                         results.pkgSubType = "PSP Mini" /* PSP_MINI */;
                                     }
                                     else if (results.pkgContentType === 0x10) {
@@ -692,7 +735,8 @@ var GetInfo = /** @class */ (function () {
                                         results.titleUpdateUrl = "https://a0.ww.np.dl.playstation.net/tpl/np/" + results.titleId + "/" + results.titleId + "-ver.xml";
                                     }
                                 }
-                                else if (results.pkgContentType === 0x15) { // PSV packages
+                                else if (results.pkgContentType === 0x15) {
+                                    // PSV packages
                                     results.platform = "PSV" /* PSV */;
                                     if (results.sfoCategory && results.sfoCategory === 'gp') {
                                         results.pkgType = "Update" /* PATCH */;
@@ -725,7 +769,7 @@ var GetInfo = /** @class */ (function () {
                                         results.titleUpdateUrl = "http://gs-sec.ww.np.dl.playstation.net/pl/np/" + results.titleId + "/" + toHexString(updateHash.digest()) + "/" + results.titleId + "-ver.xml";
                                     }
                                 }
-                                else if (results.pkgContentType === 0x1F) {
+                                else if (results.pkgContentType === 0x1f) {
                                     results.platform = "PSV" /* PSV */;
                                     results.pkgType = "Theme" /* THEME */;
                                     results.pkgExtractRootUx0 = path.join('theme', results.cidTitleId1 + "-" + results.cidTitleId2);
@@ -740,14 +784,16 @@ var GetInfo = /** @class */ (function () {
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                     npsType = 'PSV THEME';
                                 }
-                                else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
+                                else if (results.pkgContentType === 0x18 ||
+                                    results.pkgContentType === 0x1d) {
                                     results.platform = "PSM" /* PSM */;
                                     results.pkgType = "Game" /* GAME */;
                                     results.pkgExtractRootUx0 = path.join('psm', results.cidTitleId1);
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                     npsType = 'PSM GAME';
                                 }
-                                else { // Unknown packages
+                                else {
+                                    // Unknown packages
                                     console.error("PKG content type " + results.pkgContentType + ".");
                                     results.pkgExtractRootCont = pkgHeader.contentId.substring(7);
                                 }
@@ -755,7 +801,7 @@ var GetInfo = /** @class */ (function () {
                         }
                         else if (magic === CONST_PKG4_MAGIC.toString(16)) {
                             results.platform = "PS4" /* PS4 */;
-                            if (results.pkgContentType === 0x1A) {
+                            if (results.pkgContentType === 0x1a) {
                                 if (results.sfoCategory && results.sfoCategory === 'gd') {
                                     results.pkgType = "Game" /* GAME */;
                                     npsType = 'PS4 GAME';
@@ -765,22 +811,24 @@ var GetInfo = /** @class */ (function () {
                                     npsType = 'PS4 UPDATE';
                                 }
                             }
-                            else if (results.pkgContentType === 0x1B) {
+                            else if (results.pkgContentType === 0x1b) {
                                 if (results.sfoCategory && results.sfoCategory === 'ac') {
                                     results.pkgType = "DLC" /* DLC */;
                                     npsType = 'PS4 DLC';
                                 }
                             }
                         }
-                        else if (magic === CONST_PBP_MAGIC.toString(16)) { // PBP
+                        else if (magic === CONST_PBP_MAGIC.toString(16)) {
+                            // PBP
                             // TODO
                             results.pkgExtractRootCont = results.titleId;
                         }
                         results.npsType = npsType;
                         sfoValues = null;
                         for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
-                            if (!sfoValues)
+                            if (!sfoValues) {
                                 continue;
+                            }
                             // Media Version
                             if (!results.sfoVersion && sfoValues.discVersion) {
                                 results.sfoVersion = parseFloat(sfoValues.discVersion);
@@ -806,13 +854,14 @@ var GetInfo = /** @class */ (function () {
                             }
                             // Firmware PS4
                             if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
-                                results.sfoMinVerPs4 = ((sfoValues.systemVer >> 24) & 0xFF) + "." + ((sfoValues.systemVer >> 16) & 0xFF);
+                                results.sfoMinVerPs4 = ((sfoValues.systemVer >> 24) &
+                                    0xff) + "." + ((sfoValues.systemVer >> 16) & 0xff);
                             }
                         }
                         if (!results.sfoAppVer) {
                             results.sfoAppVer = 0x0; // mandatory value
                         }
-                        results.sfoMinVer = 0.00; // mandatory value
+                        results.sfoMinVer = 0.0; // mandatory value
                         if (results.platform) {
                             if (results.platform === "PS3" /* PS3 */) {
                                 if (results.sfoMinVerPs3) {
@@ -836,55 +885,91 @@ var GetInfo = /** @class */ (function () {
                             }
                         }
                         jsonOutput = {};
+                        jsonOutput.debug = {
+                            pkgHeader: pkgHeader,
+                            pkgSfoValues: pkgSfoValues,
+                            pkgExtHeader: pkgExtHeader,
+                            pkgItemEntries: pkgItemEntries,
+                            pkgMetadata: pkgMetadata,
+                            itemSfoValues: itemSfoValues,
+                            pbpHeader: pbpHeader,
+                            pbpItemEntries: pbpItemEntries,
+                            pbpSfoValues: pbpSfoValues,
+                            mainSfoValues: mainSfoValues,
+                            npsType: npsType,
+                            results: results,
+                            pkg: pkg
+                        };
                         jsonOutput.results = {};
                         jsonOutput.results.source = this.reader.getSource().href;
-                        if (results.titleId)
+                        if (results.titleId) {
                             jsonOutput.results.titleId = results.titleId;
-                        if (results.sfoTitle)
+                        }
+                        if (results.sfoTitle) {
                             jsonOutput.results.title = results.sfoTitle;
-                        if (results.sfoTitleRegional)
+                        }
+                        if (results.sfoTitleRegional) {
                             jsonOutput.results.regionalTitle = results.sfoTitleRegional;
-                        if (results.contentId)
+                        }
+                        if (results.contentId) {
                             jsonOutput.results.region = results.region;
-                        if (results.sfoMinVer)
+                        }
+                        if (results.sfoMinVer !== null) {
                             jsonOutput.results.minFw = results.sfoMinVer;
-                        if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0)
+                        }
+                        if (results.sfoMinVerPs3 !== null && results.sfoMinVerPs3 >= 0) {
                             jsonOutput.results.minFwPs3 = results.sfoMinVerPs3;
-                        if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0)
+                        }
+                        if (results.sfoMinVerPsp !== null && results.sfoMinVerPsp >= 0) {
                             jsonOutput.results.minFwPsp = results.sfoMinVerPsp;
-                        if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0)
+                        }
+                        if (results.sfoMinVerPsv !== null && results.sfoMinVerPsv >= 0) {
                             jsonOutput.results.minFwPsv = results.sfoMinVerPsv;
-                        if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0)
+                        }
+                        if (results.sfoMinVerPs4 !== null && results.sfoMinVerPs4 >= 0) {
                             jsonOutput.results.minFwPs4 = results.sfoMinVerPs4;
-                        if (results.sfoSdkVer && results.sfoSdkVer >= 0)
+                        }
+                        if (results.sfoSdkVer !== null && results.sfoSdkVer >= 0) {
                             jsonOutput.results.sdkVer = results.sfoSdkVer;
-                        if (results.sfoCreationDate)
+                        }
+                        if (results.sfoCreationDate) {
                             jsonOutput.results.creationDate = results.sfoCreationDate;
-                        if (results.sfoVersion && results.sfoVersion >= 0)
+                        }
+                        if (results.sfoVersion !== null && results.sfoVersion >= 0) {
                             jsonOutput.results.version = results.sfoVersion;
-                        if (results.sfoAppVer && results.sfoAppVer >= 0)
+                        }
+                        if (results.sfoAppVer !== null && results.sfoAppVer >= 0) {
                             jsonOutput.results.appVer = results.sfoAppVer;
-                        if (results.psxTitleId)
+                        }
+                        if (results.psxTitleId) {
                             jsonOutput.results.psxTitleId = results.psxTitleId;
-                        if (results.contentId)
+                        }
+                        if (results.contentId) {
                             jsonOutput.results.contentId = results.contentId;
+                        }
                         if (results.pkgTotalSize && results.pkgTotalSize > 0) {
                             jsonOutput.results.pkgTotalSize = results.pkgTotalSize;
                             jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize);
                         }
-                        if (results.fileSize)
+                        if (results.fileSize) {
                             jsonOutput.results.fileSize = results.fileSize;
-                        if (results.titleUpdateUrl)
+                        }
+                        if (results.titleUpdateUrl) {
                             jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl;
+                        }
                         jsonOutput.results.npsType = results.npsType;
-                        if (results.platform)
+                        if (results.platform) {
                             jsonOutput.results.pkgPlatform = results.platform;
-                        if (results.pkgType)
+                        }
+                        if (results.pkgType) {
                             jsonOutput.results.pkgType = results.pkgType;
-                        if (results.pkgSubType)
+                        }
+                        if (results.pkgSubType) {
                             jsonOutput.results.pkgSubType = results.pkgSubType;
-                        if (results.toolVersion)
+                        }
+                        if (results.toolVersion) {
                             jsonOutput.results.toolVersion = results.toolVersion;
+                        }
                         if (results.pkgContentId) {
                             jsonOutput.results.pkgContentId = results.pkgContentId;
                             jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1;
@@ -896,35 +981,46 @@ var GetInfo = /** @class */ (function () {
                                 jsonOutput.results.mdTidDiffer = results.mdTidDiffer;
                             }
                         }
-                        if (results.pkgSfoOffset)
+                        if (results.pkgSfoOffset) {
                             jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset;
-                        if (results.pkgSfoOffset)
+                        }
+                        if (results.pkgSfoOffset) {
                             jsonOutput.results.pkgSfoSize = results.pkgSfoSize;
-                        if (results.pkgDrmType)
+                        }
+                        if (results.pkgDrmType) {
                             jsonOutput.results.pkgDrmType = results.pkgDrmType;
-                        if (results.pkgContentType)
+                        }
+                        if (results.pkgContentType) {
                             jsonOutput.results.pkgContentType = results.pkgContentType;
-                        if (results.pkgTailSize)
+                        }
+                        if (results.pkgTailSize) {
                             jsonOutput.results.pkgTailSize = results.pkgTailSize;
-                        if (results.pkgTailSha1)
+                        }
+                        if (results.pkgTailSha1) {
                             jsonOutput.results.pkgTailSha1 = results.pkgTailSha1;
+                        }
                         if (results.itemsInfo) {
                             jsonOutput.results.itemsInfo = results.itemsInfo;
-                            if (jsonOutput.results.itemsInfo.align)
+                            if (jsonOutput.results.itemsInfo.align) {
                                 delete jsonOutput.results.itemsInfo.align;
+                            }
                         }
-                        if (results.sfoTitleId)
+                        if (results.sfoTitleId) {
                             jsonOutput.results.sfoTitleId = results.sfoTitleId;
-                        if (results.sfoCategory)
+                        }
+                        if (results.sfoCategory) {
                             jsonOutput.results.sfoCategory = results.sfoCategory;
+                        }
                         if (results.sfoContentId) {
                             jsonOutput.results.sfoContentId = results.sfoContentId;
                             jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1;
                             jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2;
-                            if (results.sfoCidDiffer)
+                            if (results.sfoCidDiffer) {
                                 jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer;
-                            if (results.sfoTidDiffer)
+                            }
+                            if (results.sfoTidDiffer) {
                                 jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer;
+                            }
                         }
                         return [2 /*return*/, jsonOutput];
                 }
@@ -973,16 +1069,17 @@ exports["default"] = GetInfo;
 function parsePkg3Header(dataBuffer, reader) {
     return __awaiter(this, void 0, void 0, function () {
         function get(size, fromOffset) {
+            var slice;
             if (fromOffset) {
-                var slice_1 = dataBuffer.slice(fromOffset, fromOffset + size);
+                slice = dataBuffer.slice(fromOffset, fromOffset + size);
                 offset = fromOffset + size;
-                return slice_1;
+                return slice;
             }
-            var slice = dataBuffer.slice(offset, offset + size);
+            slice = dataBuffer.slice(offset, offset + size);
             offset += size;
             return slice;
         }
-        var offset, headerFields, readSize, _a, _b, _c, extHeaderFields, mainHdrSize, magic, key, aesEcb, pkgKey, metadata, mdEntryType, mdEntrySize, metaoffset, i, tempBytes;
+        var offset, headerFields, readSize, unencryptedBytes, _a, _b, _c, e_3, slicerExt, extHeaderFields, mainHdrSize, magic, key, aesEcb, pkgKey, metadata, mdEntryType, mdEntrySize, mdOffset, i, tempBytes;
         return __generator(this, function (_d) {
             switch (_d.label) {
                 case 0:
@@ -991,39 +1088,48 @@ function parsePkg3Header(dataBuffer, reader) {
                         magic: get(0x04),
                         rev: get(0x02),
                         type: buf2Int(get(0x02), 4),
-                        metadataOffset: buf2Int(get(0x04), 16),
-                        metadataCount: buf2Int(get(0x04), 16),
-                        metadataSize: get(0x04),
-                        itemCount: buf2Int(get(0x04), 16),
+                        mdOfs: buf2Int(get(0x04), 16),
+                        mdCnt: buf2Int(get(0x04), 16),
+                        hdrSize: get(0x04),
+                        itemCnt: buf2Int(get(0x04), 16),
                         totalSize: get(0x08),
-                        dataOffset: buf2Int(get(0x08), 16),
-                        dataSize: get(0x08),
+                        dataOfs: buf2Int(get(0x08), 16),
+                        dataSize: buf2Int(get(0x08), 16),
                         contentId: get(0x24).toString(),
                         padding: get(0x0c),
-                        digest: get(0x10),
+                        digest: buf2hex(get(0x10)),
                         dataRiv: get(0x10),
                         keyType: dataBuffer[0xe7] & 7,
                         keyIndex: null,
+                        mdSize: 0,
                         paramSfo: '',
                         aesCtr: {}
                     };
-                    readSize = headerFields.dataOffset - CONST_PKG3_HEADER_SIZE;
+                    readSize = headerFields.dataOfs - CONST_PKG3_HEADER_SIZE;
+                    console.debug("Get PKG3 remaining unencrypted data with size " + readSize + "/" + headerFields.dataOfs);
+                    unencryptedBytes = dataBuffer;
+                    _d.label = 1;
+                case 1:
+                    _d.trys.push([1, 3, , 4]);
                     _b = (_a = Buffer).concat;
                     _c = [dataBuffer];
                     return [4 /*yield*/, reader.read(CONST_PKG3_HEADER_SIZE, readSize)];
-                case 1:
-                    // let unencryptedBytes = await reader.read(CONST_PKG3_HEADER_SIZE, readSize)
-                    // const unencryptedBytes = Buffer.concat([dataBuffer, get(readSize, CONST_PKG3_HEADER_SIZE)])
-                    // const unencryptedBytes = get(CONST_PKG3_HEADER_SIZE, readSize)
-                    // const unencryptedBytes = Buffer.concat([dataBuffer, await reader.read(CONST_PKG3_HEADER_SIZE, readSize)])
-                    dataBuffer = _b.apply(_a, [_c.concat([
+                case 2:
+                    unencryptedBytes = _b.apply(_a, [_c.concat([
                             _d.sent()
                         ])]);
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_3 = _d.sent();
+                    reader.close();
+                    throw new Error("Could not get PKG3 unencrypted data at offset " + CONST_PKG3_HEADER_SIZE + " with size " + readSize + " from " + reader.getSource());
+                case 4:
+                    slicerExt = new Slicer_1.Slicer(unencryptedBytes);
                     extHeaderFields = null;
                     mainHdrSize = CONST_PKG3_HEADER_SIZE + CONST_PKG3_DIGEST_SIZE;
                     if (headerFields.type === 0x2) {
-                        magic = get(0x04, mainHdrSize);
-                        // const magic = unencryptedBytes.slice(mainHdrSize, mainHdrSize + 0x04)
+                        console.debug('>>>>> PKG3 Extended Main Header:');
+                        magic = slicerExt.get(0x04, mainHdrSize);
                         if (magic.readInt32BE(0) !== CONST_PKG3_EXT_MAGIC) {
                             reader.close();
                             throw new Error('Not a known PKG3 Extended Main Header');
@@ -1031,21 +1137,22 @@ function parsePkg3Header(dataBuffer, reader) {
                         }
                         extHeaderFields = {
                             magic: magic,
-                            unknown1: get(0x04),
-                            extHeaderSize: get(0x04),
-                            extDataSize: get(0x04),
-                            mainAndExtHeadersHmacOffset: get(0x04),
-                            metadataHeaderHmacOffset: get(0x04),
-                            tailOffset: get(0x08),
-                            padding1: get(0x04),
-                            pkgKeyId: buf2Int(get(0x04), 16),
-                            fullHeaderHmacOffset: get(0x04),
-                            padding2: get(0x02)
+                            unknown1: slicerExt.get(0x04),
+                            extHeaderSize: slicerExt.get(0x04),
+                            extDataSize: slicerExt.get(0x04),
+                            mainAndExtHeadersHmacOffset: slicerExt.get(0x04),
+                            metadataHeaderHmacOffset: slicerExt.get(0x04),
+                            tailOffset: slicerExt.get(0x08),
+                            padding1: slicerExt.get(0x04),
+                            pkgKeyId: buf2Int(slicerExt.get(0x04), 16),
+                            fullHeaderHmacOffset: slicerExt.get(0x04),
+                            padding2: slicerExt.get(0x02)
                         };
                     }
                     /*
                       Determine key index for item entries plus path of PARAM.SFO
                      */
+                    console.debug('>>>>> PKG3 Package Keys:');
                     if (headerFields.type === 0x1) {
                         // PS3
                         headerFields.keyIndex = 0;
@@ -1063,7 +1170,6 @@ function parsePkg3Header(dataBuffer, reader) {
                             else if (headerFields.keyIndex === 3) {
                                 // Unknown
                                 console.error("[UNKNOWN] PKG3 Key Index " + headerFields.type);
-                                throw new Error("[UNKNOWN] PKG3 Key Index " + headerFields.type);
                             }
                         }
                         else {
@@ -1072,49 +1178,36 @@ function parsePkg3Header(dataBuffer, reader) {
                     }
                     else {
                         console.error("[UNKNOWN] PKG3 Package Type " + headerFields.type);
-                        // throw new Error(`[UNKNOWN] PKG3 Package Type ${headerFields.type}`)
                     }
                     for (key in CONST_PKG3_CONTENT_KEYS) {
-                        // console.log('key: ' + CONST_PKG3_CONTENT_KEYS[key])
+                        console.debug("Content Key #" + key + ": " + toHexString(CONST_PKG3_CONTENT_KEYS[key].key));
                         if (CONST_PKG3_CONTENT_KEYS[key].derive) {
-                            aesEcb = new aesjs.ModeOfOperation.ecb(CONST_PKG3_CONTENT_KEYS[key].key);
-                            pkgKey = aesEcb.encrypt(headerFields.dataRiv);
+                            aesEcb = crypto.createCipheriv('aes-128-ecb', CONST_PKG3_CONTENT_KEYS[key].key, '');
+                            pkgKey = aesEcb.update(headerFields.dataRiv);
                             headerFields.aesCtr[key] = new PkgAesCounter_1.PkgAesCounter(pkgKey, headerFields.dataRiv);
-                            //   aes: aesEcb,
-                            //   pkgKey: aesjs.utils.hex.fromBytes(pkgKey),
-                            //   setOffset: function(offset: number) {
-                            //
-                            //   },
-                            //   decrypt: function(offset, data) {
-                            //     return this.aes.utils.utf8.fromBytes(this.aes.decrypt(pkgKey))
-                            //   }
-                            // }
-                            // aesjs.utils.hex.fromBytes(pkgKey)
+                            console.debug("Derived Key #" + key + " from IV encrypted with Content Key: " + toHexString(pkgKey));
                         }
                         else {
-                            // console.log("doesn't have derive")
-                            // headerFields.aesCtr[key] = CONST_PKG3_CONTENT_KEYS[key]
-                            // headerFields.aesCtr[key] = aesjs.utils.hex.fromBytes(CONST_PKG3_CONTENT_KEYS[key].key)
                             headerFields.aesCtr[key] = new PkgAesCounter_1.PkgAesCounter(CONST_PKG3_CONTENT_KEYS[key].key, headerFields.dataRiv);
                         }
                     }
+                    /*
+                      Extract fields from PKG3 Main Header Meta Data
+                      */
+                    console.debug('>>>>> PKG3 Meta Data:');
                     metadata = {};
                     mdEntryType = -1;
                     mdEntrySize = -1;
-                    metaoffset = headerFields.metadataOffset;
-                    for (i = 0; i < headerFields.metadataCount; i++) {
-                        // let type = get(4);
-                        // const type = unencryptedBytes.slice(metaoffset, metaoffset + 4)
-                        // mdEntryType = unencryptedBytes.slice(metaoffset, metaoffset + 4).readInt32BE(0)
-                        mdEntryType = dataBuffer.slice(metaoffset, metaoffset + 4).readInt32BE(0);
-                        metaoffset += 4;
-                        // let size = get(4)
-                        // mdEntrySize = unencryptedBytes.slice(metaoffset, metaoffset + 4).readInt32BE(0)
-                        mdEntrySize = dataBuffer.slice(metaoffset, metaoffset + 4).readInt32BE(0);
-                        // const size = unencryptedBytes.slice(metaoffset, metaoffset + 4)
-                        metaoffset += 4;
-                        tempBytes = dataBuffer.slice(metaoffset, metaoffset + mdEntrySize);
-                        // let tempBytes = unencryptedBytes.slice(metaoffset, metaoffset + mdEntrySize)
+                    mdOffset = headerFields.mdOfs;
+                    for (i = 0; i < headerFields.mdCnt; i++) {
+                        mdEntryType = unencryptedBytes.slice(mdOffset, mdOffset + 4).readInt32BE(0);
+                        mdOffset += 4;
+                        mdEntrySize = unencryptedBytes.slice(mdOffset, mdOffset + 4).readInt32BE(0);
+                        mdOffset += 4;
+                        tempBytes = unencryptedBytes.slice(mdOffset, mdOffset + mdEntrySize);
+                        console.debug("Metadata[" + i + "]: [0x" + mdOffset
+                            .toString(16)
+                            .toUpperCase() + "| " + mdEntrySize + "] ID " + mdEntryType + " = " + buf2hex(tempBytes));
                         metadata[mdEntryType] = {};
                         // (1) DRM Type
                         // (2) Content Type
@@ -1152,7 +1245,7 @@ function parsePkg3Header(dataBuffer, reader) {
                             }
                             metadata[mdEntryType].ofs = tempBytes.readInt32BE(0);
                             metadata[mdEntryType].size = tempBytes.readInt32BE(0x04);
-                            metadata[mdEntryType].sha256 = tempBytes.slice(0x08, 0x08 + 0x20);
+                            metadata[mdEntryType].sha256 = buf2hex(tempBytes.slice(0x08, 0x08 + 0x20));
                             if (mdEntrySize > 0x28) {
                                 metadata[mdEntryType].unknown = tempBytes.slice(0x28);
                             }
@@ -1184,7 +1277,7 @@ function parsePkg3Header(dataBuffer, reader) {
                             else {
                                 metadata[mdEntryType].unknown = tempBytes.slice(0x08, mdEntrySize - 0x20);
                             }
-                            metadata[mdEntryType].sha256 = tempBytes.slice(mdEntrySize - 0x20);
+                            metadata[mdEntryType].sha256 = buf2hex(tempBytes.slice(mdEntrySize - 0x20));
                         }
                         else {
                             if (mdEntryType === 0x03) {
@@ -1207,17 +1300,18 @@ function parsePkg3Header(dataBuffer, reader) {
                         // }
                         // PARAM.SFO offset and size element found
                         // if (type.readInt32BE(0) === 0xE) { // 14
-                        //   metadataFields.sfoOffset = unencryptedBytes.slice(metaoffset + 8, metaoffset + 12);
-                        //   metadataFields.sfoSize = unencryptedBytes.slice(metaoffset + 12, metaoffset + 16)
+                        //   metadataFields.sfoOffset = unencryptedBytes.slice(mdOffset + 8, mdOffset + 12);
+                        //   metadataFields.sfoSize = unencryptedBytes.slice(mdOffset + 12, mdOffset + 16)
                         // }
-                        metaoffset += mdEntrySize;
+                        mdOffset += mdEntrySize;
                     }
-                    headerFields.metadataSize = metaoffset - headerFields.metadataOffset;
+                    // headerFields.hdrSize = mdOffset - headerFields.mdOfs
+                    headerFields.mdSize = mdOffset - headerFields.mdOfs;
                     return [2 /*return*/, {
                             pkgHeader: headerFields,
                             pkgExtHeader: extHeaderFields,
                             pkgMetadata: metadata,
-                            headBytes: dataBuffer
+                            headBytes: unencryptedBytes
                         }];
             }
         });
@@ -1225,23 +1319,30 @@ function parsePkg3Header(dataBuffer, reader) {
 }
 function retrieveParamSfo(pkg, results, reader) {
     return __awaiter(this, void 0, void 0, function () {
-        var e_3;
+        var sfoBytes, e_4;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    if (pkg.headBytes.length >= results.pkgSfoOffset + results.pkgSfoSize) {
-                        return [2 /*return*/, pkg.headBytes.slice(results.pkgSfoOffset, results.pkgSfoOffset + results.pkgSfoSize)];
-                    }
-                    _a.label = 1;
+                    console.debug('>>>>> PARAM.SFO (from unencrypted data):');
+                    console.debug("Get PARAM.SFO from unencrypted data with offset " + toHexString(results.pkgSfoOffset) + " with size " + results.pkgSfoSize);
+                    if (!(pkg.headBytes.length >= results.pkgSfoOffset + results.pkgSfoSize)) return [3 /*break*/, 1];
+                    console.debug('from head data');
+                    sfoBytes = pkg.headBytes.slice(results.pkgSfoOffset, results.pkgSfoOffset + results.pkgSfoSize);
+                    return [3 /*break*/, 5];
                 case 1:
-                    _a.trys.push([1, 3, , 4]);
+                    console.debug('from input stream');
+                    _a.label = 2;
+                case 2:
+                    _a.trys.push([2, 4, , 5]);
                     return [4 /*yield*/, reader.read(results.pkgSfoOffset, results.pkgSfoSize)];
-                case 2: return [2 /*return*/, _a.sent()];
                 case 3:
-                    e_3 = _a.sent();
+                    sfoBytes = _a.sent();
+                    return [3 /*break*/, 5];
+                case 4:
+                    e_4 = _a.sent();
                     reader.close();
-                    throw new Error("Could not get PARAM.SFO at offset " + results.pkgSfoOffset + " with size " + results.pkgSfoSize + " from " + reader.getSource());
-                case 4: return [2 /*return*/];
+                    throw new Error("Could not get PARAM.SFO at offset " + toHexString(results.pkgSfoOffset) + " with size " + results.pkgSfoSize + " from " + reader.getSource());
+                case 5: return [2 /*return*/, sfoBytes];
             }
         });
     });
@@ -1249,7 +1350,7 @@ function retrieveParamSfo(pkg, results, reader) {
 function checkSfoMagic(sfoMagic, reader) {
     if (buf2Int(sfoMagic, 16) !== CONST_PARAM_SFO_MAGIC) {
         reader.close();
-        throw new Error("Not a known PARAM.SFO structure");
+        throw new Error("Not a known PARAM.SFO structure (" + toHexString(sfoMagic) + " <> " + CONST_PARAM_SFO_MAGIC + ")");
     }
     return;
 }
@@ -1257,6 +1358,7 @@ function parseSfo(sfoBytes) {
     return __awaiter(this, void 0, void 0, function () {
         var sfoKeyTableStart, sfoDataTableStart, sfoTableEntries, sfoValues, i, sfoIndexEntryOfs, sfoIndexKeyOfs, sfoIndexKey, charArr, j, sfoIndexKeyName, sfoIndexDataOfs, sfoIndexDataFmt, sfoIndexDataLen, sfoIndexData, value;
         return __generator(this, function (_a) {
+            console.debug('>>>>> SFO Header:');
             sfoBytes = Buffer.from(sfoBytes);
             sfoKeyTableStart = sfoBytes.readInt32LE(0x08);
             sfoDataTableStart = sfoBytes.readInt32LE(0x0c);
@@ -1267,7 +1369,6 @@ function parseSfo(sfoBytes) {
                 sfoIndexKeyOfs = sfoKeyTableStart + sfoBytes.readInt16LE(sfoIndexEntryOfs);
                 sfoIndexKey = '';
                 charArr = sfoBytes.slice(sfoIndexKeyOfs).toString();
-                // console.log(charArr)
                 for (j = 0; j < charArr.length; j++) {
                     if (charArr.charAt(j) === '\u0000') {
                         break;
@@ -1285,11 +1386,17 @@ function parseSfo(sfoBytes) {
                     //
                     // }
                     value = sfoIndexData.toString();
+                    if (sfoIndexKeyName === 'STITLE' || sfoIndexKeyName.substring(0, 7) === 'STITLE_' || sfoIndexKeyName === 'TITLE' || (sfoIndexKeyName.substring(0, 6) === 'TITLE_' && sfoIndexKeyName !== 'TITLE_ID')) {
+                        value = value.replace('\r\n', ' ').replace('\n\r', ' ');
+                        value = value.replace('\0', '');
+                        value = value.replace(/\s/u, ' ');
+                    }
                 }
                 else if (sfoIndexDataFmt === 0x0404) {
                     value = sfoIndexData.readInt32LE(0);
                 }
                 sfoValues[sfoIndexKeyName] = value;
+                // offset += CONST_SFO_INDEX_ENTRY_SIZE
             }
             return [2 /*return*/, sfoValues];
         });
@@ -1310,16 +1417,17 @@ function calculateAesAlignedOffsetAndSize(offset, size) {
 }
 function parsePkg3ItemsInfo(headerFields, metaData, reader) {
     return __awaiter(this, void 0, void 0, function () {
-        var itemsInfoBytes, _a, _b, e_4, pkgItemEntries, offset, nameOffsetEnd, itemNameSizeMax, slicer, i, tempFields, itemFlags, readSize, readOffset, _c, _d, _e, _f, _g, e_5, align, _i, pkgItemEntries_2, itemEntry, keyIndex, align, tmp, hasher;
+        var itemsInfoBytes, _a, _b, e_5, pkgItemEntries, offset, nameOffsetEnd, itemNameSizeMax, slicer, i, tempFields, itemFlags, readSize, readOffset, _c, _d, _e, _f, _g, e_6, align, _i, pkgItemEntries_3, itemEntry, keyIndex, align, enc, dec, tempBytes, hasher;
         return __generator(this, function (_h) {
             switch (_h.label) {
                 case 0:
+                    console.debug('>>>>> PKG3 Body Items Info:');
                     itemsInfoBytes = {};
                     itemsInfoBytes.ofs = 0;
-                    itemsInfoBytes.size = headerFields.itemCount * CONST_PKG3_ITEM_ENTRY_SIZE;
+                    itemsInfoBytes.size = headerFields.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE;
                     itemsInfoBytes.align = {};
                     itemsInfoBytes.entriesSize =
-                        headerFields.itemCount * CONST_PKG3_ITEM_ENTRY_SIZE;
+                        headerFields.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE;
                     if (metaData[0x0d]) {
                         itemsInfoBytes.ofs = metaData[0x0d].ofs;
                         if (itemsInfoBytes.size < metaData[0x0d].size) {
@@ -1327,8 +1435,9 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                         }
                     }
                     itemsInfoBytes.align = calculateAesAlignedOffsetAndSize(itemsInfoBytes.ofs, itemsInfoBytes.size);
+                    console.debug("Get PKG3 Items Info/Item Entries from encrypted data with offset " + itemsInfoBytes.ofs + " - " + itemsInfoBytes.align.ofsDelta + " + " + headerFields.dataOfs + " = " + (headerFields.dataOfs + itemsInfoBytes.align.ofs) + " with count " + headerFields.itemCnt + " and size " + itemsInfoBytes.size + " + " + itemsInfoBytes.align.sizeDelta + " = " + itemsInfoBytes.align.size);
                     if (itemsInfoBytes.align.ofsDelta > 0) {
-                        console.error("Unaligned encrypted offset     " + itemsInfoBytes.ofs + " - " + itemsInfoBytes.align.ofsDelta + " =     " + itemsInfoBytes.align.ofs + " (+ " + headerFields.dataOffset + ") for Items Info/Items Entries.");
+                        console.error("Unaligned encrypted offset     " + itemsInfoBytes.ofs + " - " + itemsInfoBytes.align.ofsDelta + " =     " + itemsInfoBytes.align.ofs + " (+ " + headerFields.dataOfs + ") for Items Info/Items Entries.");
                     }
                     itemsInfoBytes[CONST_DATATYPE_AS_IS] = [];
                     _h.label = 1;
@@ -1336,16 +1445,14 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                     _h.trys.push([1, 3, , 4]);
                     _a = itemsInfoBytes;
                     _b = CONST_DATATYPE_AS_IS;
-                    return [4 /*yield*/, reader.read(headerFields.dataOffset + itemsInfoBytes.align.ofs, itemsInfoBytes.align.size)
-                        // itemsInfoBytes[CONST_DATATYPE_AS_IS] = Buffer.concat([itemsInfoBytes[CONST_DATATYPE_AS_IS], await reader.read(headerFields.dataOffset + itemsInfoBytes.align.ofs, itemsInfoBytes.align.size)])
-                    ];
+                    return [4 /*yield*/, reader.read(headerFields.dataOfs + itemsInfoBytes.align.ofs, itemsInfoBytes.align.size)];
                 case 2:
                     _a[_b] = _h.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_4 = _h.sent();
+                    e_5 = _h.sent();
                     reader.close();
-                    throw new Error("Could not get PKG3 encrypted data at     offset " + (headerFields.dataOffset + itemsInfoBytes.align.ofs) + " with     size " + itemsInfoBytes.align.size + " from " + reader.getSource());
+                    throw new Error("Could not get PKG3 encrypted data at     offset " + (headerFields.dataOfs + itemsInfoBytes.align.ofs) + " with     size " + itemsInfoBytes.align.size + " from " + reader.getSource());
                 case 4:
                     // Decrypt PKG3 Item Entries
                     itemsInfoBytes[CONST_DATATYPE_DECRYPTED] = headerFields.aesCtr[headerFields.keyIndex].decrypt(itemsInfoBytes.align.ofs, itemsInfoBytes[CONST_DATATYPE_AS_IS]);
@@ -1355,7 +1462,7 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                     nameOffsetEnd = null;
                     itemNameSizeMax = 0;
                     slicer = new Slicer_1.Slicer(itemsInfoBytes[CONST_DATATYPE_DECRYPTED]);
-                    for (i = 0; i < headerFields.itemCount; i++) {
+                    for (i = 0; i < headerFields.itemCnt; i++) {
                         tempFields = new PKG3ItemEntry({
                             itemNameOfs: buf2Int(slicer.get(0x4), 16),
                             itemNameSize: buf2Int(slicer.get(0x4), 16),
@@ -1366,7 +1473,7 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                             index: i
                         });
                         if (tempFields.align.ofsDelta > 0) {
-                            console.error("Unaligned encrypted offset " + tempFields.dataOfs + " - " + tempFields.align.ofsDelta + " = " + tempFields.align.ofs + " (+" + headerFields.dataOffset + ")");
+                            console.error("Unaligned encrypted offset " + tempFields.dataOfs + " - " + tempFields.align.ofsDelta + " = " + tempFields.align.ofs + " (+" + headerFields.dataOfs + ")");
                         }
                         itemFlags = tempFields.flags & 0xff;
                         if (itemFlags === 0x4 || itemFlags === 0x12) {
@@ -1413,6 +1520,7 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                     readOffset = itemsInfoBytes.align.ofs + itemsInfoBytes[CONST_DATATYPE_AS_IS].length;
                     readSize =
                         itemsInfoBytes.align.size - itemsInfoBytes[CONST_DATATYPE_AS_IS].length;
+                    console.debug("Get PKG3 remaining Items Info/Item Names data with size " + readSize + "/" + itemsInfoBytes.align.size + " ");
                     _h.label = 5;
                 case 5:
                     _h.trys.push([5, 7, , 8]);
@@ -1420,21 +1528,21 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                     _d = CONST_DATATYPE_AS_IS;
                     _f = (_e = Buffer).concat;
                     _g = [Buffer.from(itemsInfoBytes[CONST_DATATYPE_AS_IS])];
-                    return [4 /*yield*/, reader.read(headerFields.dataOffset + readOffset, readSize)];
+                    return [4 /*yield*/, reader.read(headerFields.dataOfs + readOffset, readSize)];
                 case 6:
                     _c[_d] = _f.apply(_e, [_g.concat([
                             _h.sent()
                         ])]);
                     return [3 /*break*/, 8];
                 case 7:
-                    e_5 = _h.sent();
+                    e_6 = _h.sent();
                     reader.close();
-                    throw new Error("Could not get PKG3 encrypted data at offset " + (headerFields.dataOffset +
+                    throw new Error("Could not get PKG3 encrypted data at offset " + (headerFields.dataOfs +
                         readOffset) + " with size " + readSize + " from " + reader.getSource());
                 case 8:
                     itemsInfoBytes[CONST_DATATYPE_DECRYPTED] = Buffer.concat([
                         Buffer.from(itemsInfoBytes[CONST_DATATYPE_DECRYPTED]),
-                        itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(itemsInfoBytes[CONST_DATATYPE_DECRYPTED.length]),
+                        itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(itemsInfoBytes[CONST_DATATYPE_DECRYPTED].length),
                     ]);
                     return [3 /*break*/, 10];
                 case 9:
@@ -1448,8 +1556,8 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                     _h.label = 10;
                 case 10:
                     // Decrypt and Parse PKG3 Item Names
-                    for (_i = 0, pkgItemEntries_2 = pkgItemEntries; _i < pkgItemEntries_2.length; _i++) {
-                        itemEntry = pkgItemEntries_2[_i];
+                    for (_i = 0, pkgItemEntries_3 = pkgItemEntries; _i < pkgItemEntries_3.length; _i++) {
+                        itemEntry = pkgItemEntries_3[_i];
                         if (itemEntry.itemNameSize <= 0) {
                             continue;
                         }
@@ -1457,17 +1565,20 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                         offset = itemsInfoBytes.ofs + itemEntry.itemNameOfs;
                         align = calculateAesAlignedOffsetAndSize(offset, itemEntry.itemNameSize);
                         if (align.ofsDelta > 0) {
-                            console.error("Unaligned encrypted offset " + offset + " - " + align.ofsDelta + " = " + align.ofs + " (+ " + headerFields.dataOffset + ") for " + itemEntry.index + " item name.");
+                            console.error("Unaligned encrypted offset " + offset + " - " + align.ofsDelta + " = " + align.ofs + " (+ " + headerFields.dataOfs + ") for " + itemEntry.index + " item name.");
                             console.error('Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info');
                         }
                         offset = align.ofs - itemsInfoBytes.align.ofs;
-                        tmp = itemsInfoBytes[CONST_DATATYPE_DECRYPTED].slice(offset + align.ofsDelta, offset + align.ofsDelta + itemEntry.itemNameSize);
-                        itemsInfoBytes[CONST_DATATYPE_DECRYPTED].set(tmp, offset);
-                        itemEntry.name = buf2Str(tmp);
+                        enc = itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(offset, offset + align.size);
+                        dec = headerFields.aesCtr[keyIndex].decrypt(align.ofs, enc);
+                        Buffer.from(dec).copy(itemsInfoBytes[CONST_DATATYPE_DECRYPTED], offset);
+                        tempBytes = itemsInfoBytes[CONST_DATATYPE_DECRYPTED].slice(offset + align.ofsDelta, offset + align.ofsDelta + itemEntry.itemNameSize);
+                        itemEntry.name = buf2Str(tempBytes);
+                        console.debug("PKG3 Body Item Name: " + itemEntry.name);
                     }
                     hasher = new fast_sha256_1.Hash();
                     hasher.update(itemsInfoBytes[CONST_DATATYPE_DECRYPTED]);
-                    itemsInfoBytes.sha256 = hasher.digest();
+                    itemsInfoBytes.sha256 = buf2hex(hasher.digest());
                     if (metaData[0x0d] &&
                         buf2hex(itemsInfoBytes.sha256) !== buf2hex(metaData[0x0d].sha256)) {
                         console.error('Calculated SHA-256 of decrypted Items Info does not match the one from meta data 0x0D.');
@@ -1475,7 +1586,7 @@ function parsePkg3ItemsInfo(headerFields, metaData, reader) {
                         console.error('Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info');
                     }
                     // Further analysys data
-                    itemsInfoBytes.fileOfs = headerFields.dataOffset + itemsInfoBytes.ofs;
+                    itemsInfoBytes.fileOfs = headerFields.dataOfs + itemsInfoBytes.ofs;
                     itemsInfoBytes.fileOfsEnd = itemsInfoBytes.fileOfs + itemsInfoBytes.size;
                     return [2 /*return*/, { itemsInfoBytes: itemsInfoBytes, pkgItemEntries: pkgItemEntries }];
             }
@@ -1486,10 +1597,11 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
     if (size === void 0) { size = null; }
     if (extractions === void 0) { extractions = null; }
     return __awaiter(this, void 0, void 0, function () {
-        var itemDataUsable, addItemData, key, extract, align, dataOffset, fileOffset, restSize, encryptedBytes, decryptedBytes, blockDataOfs, blockDataSizeDelta, blockSize, blockDataSize, e_6, key, extract, writeBytes, key, extract;
+        var itemDataUsable, addItemData, key, extract, align, dataOffset, fileOffset, restSize, encryptedBytes, decryptedBytes, blockDataOfs, blockDataSizeDelta, blockSize, blockDataSize, e_7, key, extract, writeBytes, key, extract;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
+                    console.debug(">>>>> PKG3 Body Item Entry #" + itemEntry.index + " " + itemEntry.name + ":");
                     itemDataUsable = 0;
                     addItemData = false;
                     if (itemData !== null) {
@@ -1520,8 +1632,9 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
                     else {
                         align = calculateAesAlignedOffsetAndSize(itemEntry.dataOfs, size);
                     }
+                    console.debug("Get PKG3 item data from encrypted data with offset " + itemEntry.dataOfs + " - " + align.ofsDelta + " + " + extractionsFields.dataOfs + " = " + (extractionsFields.dataOfs + align.ofs) + " and size " + size + " + {} = {}{}");
                     dataOffset = align.ofs;
-                    fileOffset = extractionsFields.dataOffset + dataOffset;
+                    fileOffset = extractionsFields.dataOfs + dataOffset;
                     restSize = align.size;
                     encryptedBytes = null;
                     decryptedBytes = null;
@@ -1554,9 +1667,9 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
                     encryptedBytes = _a.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_6 = _a.sent();
+                    e_7 = _a.sent();
                     reader.close();
-                    throw new Error("Could not get PKG3 encrypted data at offset " + (extractionsFields.dataOffset +
+                    throw new Error("Could not get PKG3 encrypted data at offset " + (extractionsFields.dataOfs +
                         align.ofs) + " with size " + align.size + " from " + reader.getSource());
                 case 5:
                     if (addItemData) {
@@ -1565,7 +1678,9 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
                     _a.label = 6;
                 case 6:
                     // Get and process decrypted block
-                    if (itemEntry.keyIndex && extractionsFields.aesCtr) {
+                    if (itemEntry.hasOwnProperty('keyIndex') &&
+                        extractionsFields.hasOwnProperty('aesCtr')) {
+                        console.debug('inside decrypted');
                         if (itemDataUsable > 0) {
                             decryptedBytes = itemData[CONST_DATATYPE_DECRYPTED];
                         }
@@ -1596,7 +1711,7 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
                                 // TODO: error handling
                             }
                             if (extract.aligned) {
-                                // extract.itemBytesWritten += extract.request
+                                // extract.itemBytesWritten += extract.request.write
                                 // todo: ln 2073
                             }
                             else {
@@ -1629,7 +1744,7 @@ function processPkg3Item(extractionsFields, itemEntry, reader, itemData, size, e
 }
 function parsePbpHeader(headBytes, fileSize, reader) {
     return __awaiter(this, void 0, void 0, function () {
-        var slicer, pbpHeaderFields, unencryptedBytes, readSize, _a, _b, _c, e_7, itemEntries, itemIndex, lastItem, key, itemEntry;
+        var slicer, pbpHeaderFields, unencryptedBytes, readSize, _a, _b, _c, e_8, itemEntries, itemIndex, lastItem, key, itemEntry;
         return __generator(this, function (_d) {
             switch (_d.label) {
                 case 0:
@@ -1663,7 +1778,7 @@ function parsePbpHeader(headBytes, fileSize, reader) {
                         ])]);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_7 = _d.sent();
+                    e_8 = _d.sent();
                     reader.close();
                     throw new Error("Could not get PBP unencrypted data at offset " + CONST_PBP_HEADER_SIZE + " with size " + readSize + " from " + reader.getSource());
                 case 4:
@@ -1676,10 +1791,6 @@ function parsePbpHeader(headBytes, fileSize, reader) {
                             dataOfs: pbpHeaderFields[key],
                             isFileOfs: pbpHeaderFields[key]
                         });
-                        // itemEntry.
-                        // itemEntry.structureDef
-                        // itemEntry.dataOfs = pbpHeaderFields[key]
-                        // itemEntry.isFileOfs = itemEntry.dataOfs
                         if (lastItem) {
                             itemEntries[lastItem].dataSize =
                                 itemEntry.dataOfs - itemEntries[lastItem].dataOfs;
@@ -1772,23 +1883,15 @@ function buf2Str(bytes) {
 function toHexString(byteArray) {
     return Array.prototype.map
         .call(byteArray, function (byte) {
-        return ('0' + (byte & 0xff).toString(16)).slice(-2);
+        return ('0' + (byte & 0xff).toString(16)).toUpperCase().slice(-2);
     })
         .join('');
-}
-function toByteArray(hex) {
-    var result = [];
-    while (hex.length >= 2) {
-        result.push(parseInt(hex.substring(0, 2), 16));
-        hex = hex.substring(2, hex.length);
-    }
-    return result;
 }
 function humanFileSize(bytes, si) {
     if (si === void 0) { si = false; }
     var thresh = si ? 1000 : 1024;
     if (Math.abs(bytes) < thresh) {
-        return bytes + ' B';
+        return bytes + " B";
     }
     var units = si
         ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
@@ -1798,5 +1901,19 @@ function humanFileSize(bytes, si) {
         bytes /= thresh;
         ++u;
     } while (Math.abs(bytes) >= thresh && u < units.length - 1);
-    return bytes.toFixed(1) + ' ' + units[u];
+    return bytes.toFixed(1) + " " + units[u];
+}
+function splice(arr, starting, deleteCount, elements) {
+    if (arguments.length === 1) {
+        return arr;
+    }
+    starting = Math.max(starting, 0);
+    deleteCount = Math.max(deleteCount, 0);
+    elements = elements || [];
+    var newSize = arr.length - deleteCount + elements.length;
+    var splicedArray = new arr.constructor(newSize);
+    splicedArray.set(arr.subarray(0, starting));
+    splicedArray.set(elements, starting);
+    splicedArray.set(arr.subarray(starting + deleteCount), starting + elements.length);
+    return splicedArray;
 }

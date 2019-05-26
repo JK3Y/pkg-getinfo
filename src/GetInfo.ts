@@ -2,7 +2,8 @@ import { PkgReader } from './PkgReader'
 import { PkgAesCounter } from './PkgAesCounter'
 import { Slicer } from './Slicer'
 import { Hash, HMAC } from 'fast-sha256'
-import * as aesjs from 'aes-js'
+// import * as aesjs from 'aes-js'
+import * as crypto from 'crypto'
 import * as path from 'path'
 
 interface AesAlign {
@@ -113,9 +114,10 @@ const CONST_PKG3_CONTENT_KEYS = [
 ]
 const CONST_PKG3_UPDATE_KEYS = {
   2: {
-    key: new Uint8Array([0xE5, 0xE2, 0x78, 0xAA, 0x1E, 0xE3, 0x40, 0x82, 0xA0, 0x88, 0x27, 0x9C, 0x83, 0xF9, 0xBB, 0xC8, 0x06, 0x82, 0x1C, 0x52, 0xF2, 0xAB, 0x5D, 0x2B, 0x4A, 0xBD, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14]),
+    key: new Uint8Array([0xe5, 0xe2, 0x78, 0xaa, 0x1e, 0xe3, 0x40, 0x82, 0xa0, 0x88, 0x27, 0x9c, 0x83, 0xf9, 0xbb, 0xc8, 0x06, 0x82, 0x1c, 0x52, 0xf2, 0xab, 0x5d, 0x2b, 0x4a, 0xbd, 0x99, 0x54, 0x50, 0x35, 0x51, 0x14]),
+    // key: '5eJ4qh7jQIKgiCecg/m7yAaCHFLyq10rSr2ZVFA1URQ='
     desc: 'PSV',
-  }
+  },
 }
 
 const CONST_PKG4_MAIN_HEADER_SIZE = 1440
@@ -225,7 +227,7 @@ const enum CONST_PKG_SUB_TYPE {
 }
 
 interface IGetInfoOptions {
-  baseUrl?: string
+  baseUrl?: string;
 }
 
 export default class GetInfo {
@@ -289,11 +291,14 @@ export default class GetInfo {
       pkg.headBytes = parsedHeader.headBytes
 
       if (pkgHeader.totalSize) {
-        results.pkgTotalSize = parseInt(pkgHeader.totalSize.toString('hex'), 16)
+        results.pkgTotalSize = parseInt(
+          pkgHeader.totalSize.toString('hex'),
+          16
+        )
       }
       if (pkgHeader.contentId) {
         results.pkgContentId = pkgHeader.contentId
-        results.pkgCidTitleId1 = pkgHeader.contentId.substr(7, 16)
+        results.pkgCidTitleId1 = pkgHeader.contentId.substring(7, 16)
         results.pkgCidTitleId2 = pkgHeader.contentId.substr(20)
       }
       if (pkgMetadata[0x0e]) {
@@ -309,13 +314,36 @@ export default class GetInfo {
       if (pkgMetadata[0x06]) {
         results.mdTitleId = pkgMetadata[0x06].value
       }
-      // if (pkgMetadata[0x0D]) {
-      //   if (pkgMetadata[0x0D].ofs !== 0) {
-      //
-      //   }
-      // }
+      if (pkgMetadata[0x0d]) {
+        // a) offset inside encrypted data
+        if (pkgMetadata[0x0d].ofs !== 0) {
+          console.error(
+            `Items Info start offset inside encrypted data ${
+              pkgMetadata[0x0d].ofs
+            } <> 0x0.`
+          )
+          console.error(
+            'Please report this unknown case at https://github.com/windsurfer1122/PSN_get_pkg_info'
+          )
+        }
+        // b) size
+        if (
+          pkgMetadata[0x0d].size <
+          pkgHeader.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE
+        ) {
+          console.error(
+            `Items Info size ${pkgMetadata[0x0d].size} is to small for ${
+              pkgHeader.itemCnt
+            } Item Entries with a total size of ${pkgHeader.itemCnt *
+              CONST_PKG3_ITEM_ENTRY_SIZE}.`
+          )
+          console.error(
+            'Please report this unknown case at https://github.com/windsurfer1122/PSN_get_pkg_info'
+          )
+        }
+      }
 
-      if (results.pkgSfoOffset) {
+      if (results.pkgSfoOffset && results.pkgSfoOffset > 0) {
         sfoBytes = await retrieveParamSfo(pkg, results, this.reader)
         // const sfoMagic = sfoBytes.readUInt32BE(0)
         // const sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
@@ -323,11 +351,15 @@ export default class GetInfo {
         //   this.reader.close()
         //   throw new Error(`Not a known PARAM.SFO structure`)
         // }
-        checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
-
-        pkgSfoValues = await parseSfo(sfoBytes)
+        if (sfoBytes) {
+          // Check for known PARAM.SFO data
+          checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
+          // Process PARAM.SFO data
+          pkgSfoValues = await parseSfo(sfoBytes)
+        }
       }
 
+      // Process PKG3 encrypted item entries
       if (pkgHeader.keyIndex !== null) {
         let parsedItems = await parsePkg3ItemsInfo(
           pkgHeader,
@@ -336,7 +368,7 @@ export default class GetInfo {
         )
         pkg.itemsInfoBytes = parsedItems.itemsInfoBytes
         pkgItemEntries = parsedItems.pkgItemEntries
-        results.itemsInfo = pkg.itemsInfoBytes
+        results.itemsInfo = Object.assign({}, pkg.itemsInfoBytes)
         if (results.itemsInfo[CONST_DATATYPE_AS_IS]) {
           delete results.itemsInfo[CONST_DATATYPE_AS_IS]
         }
@@ -345,7 +377,7 @@ export default class GetInfo {
         }
       }
 
-      if (pkgItemEntries) {
+      if (pkgItemEntries !== null) {
         // Search PARAM.SFO in encrypted data
         let retrieveEncryptedParamSfo = false
         if (pkgHeader.paramSfo) {
@@ -359,11 +391,21 @@ export default class GetInfo {
 
           let itemIndex = itemEntry.index
 
-          if (retrieveEncryptedParamSfo && itemEntry.name === pkgHeader.paramSfo) {
+          if (
+            retrieveEncryptedParamSfo &&
+            itemEntry.name === pkgHeader.paramSfo
+          ) {
+            console.debug(`>>>>> ${itemEntry.name} (from encrypted data)`)
+
             // Retrieve PARAM.SFO
             pkg.itemBytes[itemIndex] = {}
             pkg.itemBytes[itemIndex].add = true
-            await processPkg3Item(pkgHeader, itemEntry, this.reader, pkg.itemBytes[itemIndex])
+            await processPkg3Item(
+              pkgHeader,
+              itemEntry,
+              this.reader,
+              pkg.itemBytes[itemIndex]
+            )
 
             // Process PARAM.SFO
             sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
@@ -372,16 +414,10 @@ export default class GetInfo {
             )
 
             // Check for known PARAM.SFO data
-            let sfoMagic = buf2Int(sfoBytes.slice(0, 4), 16)
-
-            // if (sfoMagic !== CONST_PARAM_SFO_MAGIC) {
-            //   this.reader.close()
-            //   throw new Error(`Not a known PARAM.SFO structure`)
-            // }
             checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
 
             // Process PARAM.SFO data
-            itemSfoValues = parseSfo(sfoBytes)
+            itemSfoValues = await parseSfo(sfoBytes)
           } else if (CONST_REGEX_PBP_SUFFIX.test(itemEntry.name)) {
             // Retrieve PBP header
             pkg.itemBytes[itemIndex] = {}
@@ -395,7 +431,10 @@ export default class GetInfo {
             )
 
             // Process PBP header
-            let pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(itemEntry.align.ofsDelta, itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE)
+            let pbpBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
+              itemEntry.align.ofsDelta,
+              itemEntry.align.ofsDelta + CONST_PBP_HEADER_SIZE
+            )
 
             let parsedPBP = await parsePbpHeader(pbpBytes, itemEntry.dataSize)
             pbpHeader = parsedPBP.pbpHeaderFields
@@ -413,15 +452,15 @@ export default class GetInfo {
             sfoBytes = pkg.itemBytes[itemIndex][CONST_DATATYPE_DECRYPTED].slice(
               itemEntry.align.ofsDelta + pbpItemEntries[0].dataOfs,
               itemEntry.align.ofsDelta +
-              pbpItemEntries[0].dataOfs +
-              pbpItemEntries[0].dataSize
+                pbpItemEntries[0].dataOfs +
+                pbpItemEntries[0].dataSize
             )
 
             // Check for known PARAM.SFO data
             checkSfoMagic(sfoBytes.slice(0, 4), this.reader)
 
             // Process PARAM.SFO data
-            pbpSfoValues = parseSfo(sfoBytes)
+            pbpSfoValues = await parseSfo(sfoBytes)
           }
         }
       }
@@ -435,29 +474,31 @@ export default class GetInfo {
       // Get PKG3 unencrypted tail data
       try {
         pkg.tailBytes = await this.reader.read(
-          pkgHeader.dataOffset + pkgHeader.dataSize,
-          pkgHeader.totalSize - (pkgHeader.dataOffset + pkgHeader.dataSize)
+          pkgHeader.dataOfs + pkgHeader.dataSize,
+          pkgHeader.totalSize - (pkgHeader.dataOfs + pkgHeader.dataSize)
         )
       } catch (e) {
         this.reader.close()
         console.error(
-          `Could not get PKG3 unencrypted tail at offset ${pkgHeader.dataOffset +
-          pkgHeader.dataSize} size ${pkgHeader.totalSize -
-          (pkgHeader.dataOffset +
-            pkgHeader.dataSize)} from ${this.reader.getSource()}`
+          `Could not get PKG3 unencrypted tail at offset ${pkgHeader.dataOfs +
+            pkgHeader.dataSize} size ${pkgHeader.totalSize -
+            (pkgHeader.dataOfs +
+              pkgHeader.dataSize)} from ${this.reader.getSource()}`
         )
       }
 
       if (pkg.tailBytes) {
-        // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only thje first file of a multi-part package
+        // may not be present or have failed, e.g. when analyzing a head.bin file, a broken download or only the first file of a multi-part package
         results.pkgTailSize = pkg.tailBytes.length
-        results.pkgTailSha1 = pkg.tailBytes.slice(-0x20, -0x0c)
+        results.pkgTailSha1 = pkg.tailBytes.slice(
+          -0x20,
+          pkg.tailBytes.length - 0x0c
+        )
       }
     } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
       // PS4
       console.error('PS4 support not yet added.')
-    }
-    else if (magic === CONST_PBP_MAGIC.toString(16)) {
+    } else if (magic === CONST_PBP_MAGIC.toString(16)) {
       // PBP
       let parsedPbpHeader = await parsePbpHeader(
         pkg.headBytes,
@@ -482,6 +523,9 @@ export default class GetInfo {
 
           // Process PARAM.SFO data
           pbpSfoValues = await parseSfo(sfoBytes)
+
+          console.log('pbpSfoValues')
+          console.log(pbpSfoValues)
         }
 
         mainSfoValues = pbpSfoValues
@@ -506,6 +550,9 @@ export default class GetInfo {
 
     // Process main PARAM.SFO if present
     if (mainSfoValues) {
+      console.debug('mainSfoValues')
+      console.debug(mainSfoValues)
+
       if (mainSfoValues.DISK_ID) {
         results.sfoTitleId = mainSfoValues.DISK_ID
       }
@@ -572,6 +619,7 @@ export default class GetInfo {
       results.region = r.region
       results.languages = r.languages
       // if (results.languages === null) {
+        // results.languages
       // TODO: line 2831/2832
       // }
     }
@@ -595,9 +643,15 @@ export default class GetInfo {
           for (let i = 0; i < replaceChars[0].length; i++) {
             let replaceChar = replaceChars[0][i]
             if (replaceChars[1] === ' ') {
-              results.sfoTitle = results.sfoTitle.replace(replaceChar.concat(':'), ':')
+              results.sfoTitle = results.sfoTitle.replace(
+                replaceChar.concat(':'),
+                ':'
+              )
             }
-            results.sfoTitle = results.sfoTitle.replace(replaceChar, replaceChars[1])
+            results.sfoTitle = results.sfoTitle.replace(
+              replaceChar,
+              replaceChars[1]
+            )
           }
         }
       }
@@ -613,8 +667,11 @@ export default class GetInfo {
         .replace('【体験版】', '(DEMO)')
         .replace('(体験版)', '(DEMO)')
         .replace('体験版', '(DEMO)')
-      results.sfoTitle = results.sfoTitle.replace(/(demo)/ui, '(DEMO)')
-      results.sfoTitle = results.sfoTitle.replace(/(^|[^a-z(]{1})demo([^a-z)]{1}|$)/iu, '$1(DEMO)$2')
+      results.sfoTitle = results.sfoTitle.replace(/(demo)/iu, '(DEMO)')
+      results.sfoTitle = results.sfoTitle.replace(
+        /(^|[^a-z(]{1})demo([^a-z)]{1}|$)/iu,
+        '$1(DEMO)$2'
+      )
 
       results.sfoTitle = results.sfoTitle.replace(/(  )/iu, ' ')
     }
@@ -641,9 +698,15 @@ export default class GetInfo {
           for (let i = 0; i < replaceChars[0].length; i++) {
             let replaceChar = replaceChars[0][i]
             if (replaceChars[1] === ' ') {
-              results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar.concat(':'), ':')
+              results.sfoTitleRegional = results.sfoTitleRegional.replace(
+                replaceChar.concat(':'),
+                ':'
+              )
             }
-            results.sfoTitleRegional = results.sfoTitleRegional.replace(replaceChar, replaceChars[1])
+            results.sfoTitleRegional = results.sfoTitleRegional.replace(
+              replaceChar,
+              replaceChars[1]
+            )
           }
         }
       }
@@ -655,22 +718,41 @@ export default class GetInfo {
     if (magic === CONST_PKG3_MAGIC.toString(16)) {
       if (results.pkgContentType) {
         // PS3 packages
-        if (results.pkgContentType === 0x4 || results.pkgContentType === 0xB) {
+        if (results.pkgContentType === 0x4 || results.pkgContentType === 0xb) {
           results.platform = CONST_PLATFORM.PS3
-          if (pkgMetadata[0x0B]) {
+          if (pkgMetadata[0x0b]) {
             results.pkgType = CONST_PKG_TYPE.PATCH
             npsType = 'PS3 UPDATE'
           } else {
             results.pkgType = CONST_PKG_TYPE.DLC
             npsType = 'PS3 DLC'
+
+            if (!results.sfoTitle && pkgMetadata[0x03] && pkgMetadata[0x03].value === 0x0000048c) {
+              for (let itemEntry of pkgItemEntries) {
+                if (!itemEntry.name || itemEntry.dataSize <= 0) {
+                  continue
+                }
+
+                if (itemEntry.name.endsWith('.edat') && !itemEntry.name.endsWith('p3t.edat')) {
+                  results.sfoTitle = `${results.titleId} - Unlock Key`
+                  break
+                }
+              }
+            }
           }
 
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
 
           if (results.titleId) {
-            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${
+              results.titleId
+            }/${results.titleId}-ver.xml`
           }
-        } else if (results.pkgContentType === 0x5 || results.pkgContentType === 0x13 || results.pkgContentType === 0x14) {
+        } else if (
+          results.pkgContentType === 0x5 ||
+          results.pkgContentType === 0x13 ||
+          results.pkgContentType === 0x14
+        ) {
           results.platform = CONST_PLATFORM.PS3
           results.pkgType = CONST_PKG_TYPE.GAME
           if (results.pkgContentType === 0x14) {
@@ -681,26 +763,33 @@ export default class GetInfo {
           npsType = 'PS3 GAME'
 
           if (results.titleId) {
-            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${
+              results.titleId
+            }/${results.titleId}-ver.xml`
           }
-        } else if (results.pkgContentType === 0x9) { // PS3/PSP Themes
+        } else if (results.pkgContentType === 0x9) {
+          // PS3/PSP Themes
           results.platform = CONST_PLATFORM.PS3
           results.pkgType = CONST_PKG_TYPE.THEME
           npsType = 'PS3 THEME'
 
-          if (pkgMetadata[0x03] && buf2Int(pkgMetadata[0x03].value) === 0x0000020C) {
+          if (
+            pkgMetadata[0x03] &&
+            buf2Int(pkgMetadata[0x03].value) === 0x0000020c
+          ) {
             results.platform = CONST_PLATFORM.PSP
             npsType = 'PSP THEME'
           }
 
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
-        } else if (results.pkgContentType === 0xD) {
+        } else if (results.pkgContentType === 0xd) {
           results.platform = CONST_PLATFORM.PS3
           results.pkgType = CONST_PKG_TYPE.AVATAR
 
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
           npsType = 'PS3 AVATAR'
-        } else if (results.pkgContentType === 0x12) { // PS2/SFO_CATEGORY = 2P
+        } else if (results.pkgContentType === 0x12) {
+          // PS2/SFO_CATEGORY = 2P
           results.platform = CONST_PLATFORM.PS3
           results.pkgType = CONST_PKG_TYPE.GAME
           results.pkgSubType = CONST_PKG_SUB_TYPE.PS2
@@ -711,12 +800,26 @@ export default class GetInfo {
           if (results.sfoTitleId) {
             results.Ps2TitleId = results.sfoTitleId
           }
-        } else if (results.pkgContentType === 0x1 || results.pkgContentType === 0x6) { // PSX packages
+        } else if (
+          results.pkgContentType === 0x1 ||
+          results.pkgContentType === 0x6
+        ) {
+          // PSX packages
           results.platform = CONST_PLATFORM.PSX
           results.pkgType = CONST_PKG_TYPE.GAME
 
-          results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
-          results.pkgExtractLicUx0 = path.join('pspemu', 'PSP', 'LICENSE', ''.concat(results.pkgContentId, '.rif'))
+          results.pkgExtractRootUx0 = path.join(
+            'pspemu',
+            'PSP',
+            'GAME',
+            results.pkgCidTitleId1
+          )
+          results.pkgExtractLicUx0 = path.join(
+            'pspemu',
+            'PSP',
+            'LICENSE',
+            ''.concat(results.pkgContentId, '.rif')
+          )
 
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
           npsType = 'PSX GAME'
@@ -725,14 +828,22 @@ export default class GetInfo {
           if (results.titleId === 'PCSC80018') {
             results.platform = CONST_PLATFORM.PSV
             results.pkgSubType = CONST_PLATFORM.PSX
-            results.pkgExtractRootUx0 = path.join('ps1emu', results.pkgCidTitleId1)
+            results.pkgExtractRootUx0 = path.join(
+              'ps1emu',
+              results.pkgCidTitleId1
+            )
             npsType = 'PSV GAME'
           }
 
           if (results.pkgContentType === 0x6 && results.mdTitleId) {
             results.psxTitleId = results.mdTitleId
           }
-        } else if (results.pkgContentType === 0x7 || results.pkgContentType === 0xE || results.pkgContentType === 0xF || results.pkgContentType === 0x10) {
+        } else if (
+          results.pkgContentType === 0x7 ||
+          results.pkgContentType === 0xe ||
+          results.pkgContentType === 0xf ||
+          results.pkgContentType === 0x10
+        ) {
           results.platform = CONST_PLATFORM.PSP
           if (pbpSfoValues && pbpSfoValues.category) {
             if (pbpSfoValues.category === 'PG') {
@@ -744,13 +855,19 @@ export default class GetInfo {
             }
           }
 
-          if (!results.pkgType) { // Normally CATEGORY === EG
+          if (!results.pkgType) {
+            // Normally CATEGORY === EG
             results.pkgType = CONST_PKG_TYPE.GAME
             npsType = 'PSP GAME'
           }
 
           // TODO: Verify when ISO and when GAME directory has to be used?
-          results.pkgExtractRootUx0 = path.join('pspemu', 'PSP', 'GAME', results.pkgCidTitleId1)
+          results.pkgExtractRootUx0 = path.join(
+            'pspemu',
+            'PSP',
+            'GAME',
+            results.pkgCidTitleId1
+          )
           results.pkgExtractIsorUx0 = path.join('pspemu', 'ISO')
           results.pkgExtractIsoName = `${results.sfoTitle} [${results.pkgCidTitleId1}].iso`
           // results.pkgExtractIsoName = ''.concat(results.sfoTitle, ' [', results.pkgCidTitleId1, ']', '.iso')
@@ -759,9 +876,9 @@ export default class GetInfo {
             if (results.sfoCategory === 'HG') {
               results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_PC_ENGINE
             }
-          } else if (results.pkgContentType === 0xE) {
+          } else if (results.pkgContentType === 0xe) {
             results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_GO
-          } else if (results.pkgContentType === 0xF) {
+          } else if (results.pkgContentType === 0xf) {
             results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_MINI
           } else if (results.pkgContentType === 0x10) {
             results.pkgSubType = CONST_PKG_SUB_TYPE.PSP_NEOGEO
@@ -770,9 +887,12 @@ export default class GetInfo {
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
 
           if (results.titleId) {
-            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${results.titleId}/${results.titleId}-ver.xml`
+            results.titleUpdateUrl = `https://a0.ww.np.dl.playstation.net/tpl/np/${
+              results.titleId
+            }/${results.titleId}-ver.xml`
           }
-        } else if (results.pkgContentType === 0x15) { // PSV packages
+        } else if (results.pkgContentType === 0x15) {
+          // PSV packages
           results.platform = CONST_PLATFORM.PSV
           if (results.sfoCategory && results.sfoCategory === 'gp') {
             results.pkgType = CONST_PKG_TYPE.PATCH
@@ -790,13 +910,19 @@ export default class GetInfo {
             let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
             let data = new TextEncoder().encode(`np_${results.titleId}`)
             updateHash.update(data)
-            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${
+              results.titleId
+            }/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
           }
         } else if (results.pkgContentType === 0x16) {
           results.platform = CONST_PLATFORM.PSV
           results.pkgType = CONST_PKG_TYPE.DLC
 
-          results.pkgExtractRootUx0 = path.join('addcont', results.cidTitleId1, results.cidTitleId2)
+          results.pkgExtractRootUx0 = path.join(
+            'addcont',
+            results.cidTitleId1,
+            results.cidTitleId2
+          )
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
 
           npsType = 'PSV DLC'
@@ -805,13 +931,18 @@ export default class GetInfo {
             let updateHash = new HMAC(CONST_PKG3_UPDATE_KEYS[2].key)
             let data = new TextEncoder().encode(`np_${results.titleId}`)
             updateHash.update(data)
-            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${results.titleId}/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
+            results.titleUpdateUrl = `http://gs-sec.ww.np.dl.playstation.net/pl/np/${
+              results.titleId
+            }/${toHexString(updateHash.digest())}/${results.titleId}-ver.xml`
           }
-        } else if (results.pkgContentType === 0x1F) {
+        } else if (results.pkgContentType === 0x1f) {
           results.platform = CONST_PLATFORM.PSV
           results.pkgType = CONST_PKG_TYPE.THEME
 
-          results.pkgExtractRootUx0 = path.join('theme', `${results.cidTitleId1}-${results.cidTitleId2}`)
+          results.pkgExtractRootUx0 = path.join(
+            'theme',
+            `${results.cidTitleId1}-${results.cidTitleId2}`
+          )
 
           // TODO/FUTURE: bgdl
           //  - find next free xxxxxxxx dir (hex 00000000-FFFFFFFF)
@@ -824,7 +955,10 @@ export default class GetInfo {
 
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
           npsType = 'PSV THEME'
-        } else if (results.pkgContentType === 0x18 || results.pkgContentType === 0x1D) {
+        } else if (
+          results.pkgContentType === 0x18 ||
+          results.pkgContentType === 0x1d
+        ) {
           results.platform = CONST_PLATFORM.PSM
           results.pkgType = CONST_PKG_TYPE.GAME
 
@@ -832,15 +966,15 @@ export default class GetInfo {
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
 
           npsType = 'PSM GAME'
-        } else { // Unknown packages
+        } else {
+          // Unknown packages
           console.error(`PKG content type ${results.pkgContentType}.`)
           results.pkgExtractRootCont = pkgHeader.contentId.substring(7)
         }
       }
-    }
-    else if (magic === CONST_PKG4_MAGIC.toString(16)) {
+    } else if (magic === CONST_PKG4_MAGIC.toString(16)) {
       results.platform = CONST_PLATFORM.PS4
-      if (results.pkgContentType === 0x1A) {
+      if (results.pkgContentType === 0x1a) {
         if (results.sfoCategory && results.sfoCategory === 'gd') {
           results.pkgType = CONST_PKG_TYPE.GAME
           npsType = 'PS4 GAME'
@@ -848,14 +982,14 @@ export default class GetInfo {
           results.pkgType = CONST_PKG_TYPE.PATCH
           npsType = 'PS4 UPDATE'
         }
-      } else if (results.pkgContentType === 0x1B) {
+      } else if (results.pkgContentType === 0x1b) {
         if (results.sfoCategory && results.sfoCategory === 'ac') {
           results.pkgType = CONST_PKG_TYPE.DLC
           npsType = 'PS4 DLC'
         }
       }
-    }
-    else if (magic === CONST_PBP_MAGIC.toString(16)) { // PBP
+    } else if (magic === CONST_PBP_MAGIC.toString(16)) {
+      // PBP
       // TODO
       results.pkgExtractRootCont = results.titleId
     }
@@ -865,7 +999,7 @@ export default class GetInfo {
     // e) Media/App/Firmware Version
     let sfoValues = null
     for (sfoValues in [pbpSfoValues, itemSfoValues, pkgSfoValues]) {
-      if (!sfoValues) continue
+      if (!sfoValues) { continue }
       // Media Version
       if (!results.sfoVersion && sfoValues.discVersion) {
         results.sfoVersion = parseFloat(sfoValues.discVersion)
@@ -896,7 +1030,8 @@ export default class GetInfo {
 
       // Firmware PS4
       if (!results.sfoMinVerPs4 && sfoValues.systemVer) {
-        results.sfoMinVerPs4 = `${(sfoValues.systemVer >> 24) & 0xFF}.${(sfoValues.systemVer >> 16) & 0xFF}`
+        results.sfoMinVerPs4 = `${(sfoValues.systemVer >> 24) &
+          0xff}.${(sfoValues.systemVer >> 16) & 0xff}`
       }
     }
 
@@ -904,7 +1039,7 @@ export default class GetInfo {
       results.sfoAppVer = 0x0 // mandatory value
     }
 
-    results.sfoMinVer = 0.00 // mandatory value
+    results.sfoMinVer = 0.0 // mandatory value
     if (results.platform) {
       if (results.platform === CONST_PLATFORM.PS3) {
         if (results.sfoMinVerPs3) {
@@ -927,35 +1062,74 @@ export default class GetInfo {
 
     // Output Results
     let jsonOutput: any = {}
+    jsonOutput.debug = {
+      pkgHeader,
+      pkgSfoValues,
+      pkgExtHeader,
+      pkgItemEntries,
+      pkgMetadata,
+      itemSfoValues,
+      pbpHeader,
+      pbpItemEntries,
+      pbpSfoValues,
+      mainSfoValues,
+      npsType,
+      results,
+      pkg,
+    }
     jsonOutput.results = {}
     jsonOutput.results.source = this.reader.getSource().href
-    if (results.titleId) jsonOutput.results.titleId = results.titleId
-    if (results.sfoTitle) jsonOutput.results.title = results.sfoTitle
-    if (results.sfoTitleRegional) jsonOutput.results.regionalTitle = results.sfoTitleRegional
-    if (results.contentId) jsonOutput.results.region = results.region
-    if (results.sfoMinVer) jsonOutput.results.minFw = results.sfoMinVer
-    if (results.sfoMinVerPs3 && results.sfoMinVerPs3 >= 0) jsonOutput.results.minFwPs3 = results.sfoMinVerPs3
-    if (results.sfoMinVerPsp && results.sfoMinVerPsp >= 0) jsonOutput.results.minFwPsp = results.sfoMinVerPsp
-    if (results.sfoMinVerPsv && results.sfoMinVerPsv >= 0) jsonOutput.results.minFwPsv = results.sfoMinVerPsv
-    if (results.sfoMinVerPs4 && results.sfoMinVerPs4 >= 0) jsonOutput.results.minFwPs4 = results.sfoMinVerPs4
-    if (results.sfoSdkVer && results.sfoSdkVer >= 0) jsonOutput.results.sdkVer = results.sfoSdkVer
-    if (results.sfoCreationDate) jsonOutput.results.creationDate = results.sfoCreationDate
-    if (results.sfoVersion && results.sfoVersion >= 0) jsonOutput.results.version = results.sfoVersion
-    if (results.sfoAppVer && results.sfoAppVer >= 0) jsonOutput.results.appVer = results.sfoAppVer
-    if (results.psxTitleId) jsonOutput.results.psxTitleId = results.psxTitleId
-    if (results.contentId) jsonOutput.results.contentId = results.contentId
+    if (results.titleId) { jsonOutput.results.titleId = results.titleId }
+    if (results.sfoTitle) { jsonOutput.results.title = results.sfoTitle }
+    if (results.sfoTitleRegional) {
+      jsonOutput.results.regionalTitle = results.sfoTitleRegional
+    }
+    if (results.contentId) { jsonOutput.results.region = results.region }
+    if (results.sfoMinVer !== null) {
+      jsonOutput.results.minFw = results.sfoMinVer
+    }
+    if (results.sfoMinVerPs3 !== null && results.sfoMinVerPs3 >= 0) {
+      jsonOutput.results.minFwPs3 = results.sfoMinVerPs3
+    }
+    if (results.sfoMinVerPsp !== null && results.sfoMinVerPsp >= 0) {
+      jsonOutput.results.minFwPsp = results.sfoMinVerPsp
+    }
+    if (results.sfoMinVerPsv !== null && results.sfoMinVerPsv >= 0) {
+      jsonOutput.results.minFwPsv = results.sfoMinVerPsv
+    }
+    if (results.sfoMinVerPs4 !== null && results.sfoMinVerPs4 >= 0) {
+      jsonOutput.results.minFwPs4 = results.sfoMinVerPs4
+    }
+    if (results.sfoSdkVer !== null && results.sfoSdkVer >= 0) {
+      jsonOutput.results.sdkVer = results.sfoSdkVer
+    }
+    if (results.sfoCreationDate) {
+      jsonOutput.results.creationDate = results.sfoCreationDate
+    }
+    if (results.sfoVersion !== null && results.sfoVersion >= 0) {
+      jsonOutput.results.version = results.sfoVersion
+    }
+    if (results.sfoAppVer !== null && results.sfoAppVer >= 0) {
+      jsonOutput.results.appVer = results.sfoAppVer
+    }
+    if (results.psxTitleId) { jsonOutput.results.psxTitleId = results.psxTitleId }
+    if (results.contentId) { jsonOutput.results.contentId = results.contentId }
     if (results.pkgTotalSize && results.pkgTotalSize > 0) {
       jsonOutput.results.pkgTotalSize = results.pkgTotalSize
       jsonOutput.results.prettySize = humanFileSize(results.pkgTotalSize)
     }
-    if (results.fileSize) jsonOutput.results.fileSize = results.fileSize
-    if (results.titleUpdateUrl) jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl
+    if (results.fileSize) { jsonOutput.results.fileSize = results.fileSize }
+    if (results.titleUpdateUrl) {
+      jsonOutput.results.titleUpdateUrl = results.titleUpdateUrl
+    }
     jsonOutput.results.npsType = results.npsType
-    if (results.platform) jsonOutput.results.pkgPlatform = results.platform
-    if (results.pkgType) jsonOutput.results.pkgType = results.pkgType
-    if (results.pkgSubType) jsonOutput.results.pkgSubType = results.pkgSubType
+    if (results.platform) { jsonOutput.results.pkgPlatform = results.platform }
+    if (results.pkgType) { jsonOutput.results.pkgType = results.pkgType }
+    if (results.pkgSubType) { jsonOutput.results.pkgSubType = results.pkgSubType }
 
-    if (results.toolVersion) jsonOutput.results.toolVersion = results.toolVersion
+    if (results.toolVersion) {
+      jsonOutput.results.toolVersion = results.toolVersion
+    }
     if (results.pkgContentId) {
       jsonOutput.results.pkgContentId = results.pkgContentId
       jsonOutput.results.pkgCidTitleId1 = results.pkgCidTitleId1
@@ -967,24 +1141,42 @@ export default class GetInfo {
         jsonOutput.results.mdTidDiffer = results.mdTidDiffer
       }
     }
-    if (results.pkgSfoOffset) jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset
-    if (results.pkgSfoOffset) jsonOutput.results.pkgSfoSize = results.pkgSfoSize
-    if (results.pkgDrmType) jsonOutput.results.pkgDrmType = results.pkgDrmType
-    if (results.pkgContentType) jsonOutput.results.pkgContentType = results.pkgContentType
-    if (results.pkgTailSize) jsonOutput.results.pkgTailSize = results.pkgTailSize
-    if (results.pkgTailSha1) jsonOutput.results.pkgTailSha1 = results.pkgTailSha1
+    if (results.pkgSfoOffset) {
+      jsonOutput.results.pkgSfoOffset = results.pkgSfoOffset
+    }
+    if (results.pkgSfoOffset) {
+      jsonOutput.results.pkgSfoSize = results.pkgSfoSize
+    }
+    if (results.pkgDrmType) { jsonOutput.results.pkgDrmType = results.pkgDrmType }
+    if (results.pkgContentType) {
+      jsonOutput.results.pkgContentType = results.pkgContentType
+    }
+    if (results.pkgTailSize) {
+      jsonOutput.results.pkgTailSize = results.pkgTailSize
+    }
+    if (results.pkgTailSha1) {
+      jsonOutput.results.pkgTailSha1 = results.pkgTailSha1
+    }
     if (results.itemsInfo) {
       jsonOutput.results.itemsInfo = results.itemsInfo
-      if (jsonOutput.results.itemsInfo.align) delete jsonOutput.results.itemsInfo.align
+      if (jsonOutput.results.itemsInfo.align) {
+        delete jsonOutput.results.itemsInfo.align
+      }
     }
-    if (results.sfoTitleId) jsonOutput.results.sfoTitleId = results.sfoTitleId
-    if (results.sfoCategory) jsonOutput.results.sfoCategory = results.sfoCategory
+    if (results.sfoTitleId) { jsonOutput.results.sfoTitleId = results.sfoTitleId }
+    if (results.sfoCategory) {
+      jsonOutput.results.sfoCategory = results.sfoCategory
+    }
     if (results.sfoContentId) {
       jsonOutput.results.sfoContentId = results.sfoContentId
       jsonOutput.results.sfoCidTitleId1 = results.sfoCidTitleId1
       jsonOutput.results.sfoCidTitleId2 = results.sfoCidTitleId2
-      if (results.sfoCidDiffer) jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer
-      if (results.sfoTidDiffer) jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer
+      if (results.sfoCidDiffer) {
+        jsonOutput.results.sfoCidDiffer = results.sfoCidDiffer
+      }
+      if (results.sfoTidDiffer) {
+        jsonOutput.results.sfoTidDiffer = results.sfoTidDiffer
+      }
     }
 
     return jsonOutput
@@ -1017,64 +1209,99 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
   let offset = 0
 
   function get(size: number, fromOffset?: number) {
+    let slice
     if (fromOffset) {
-      const slice = dataBuffer.slice(fromOffset, fromOffset + size)
+      slice = dataBuffer.slice(fromOffset, fromOffset + size)
       offset = fromOffset + size
       return slice
     }
-    const slice = dataBuffer.slice(offset, offset + size)
+    slice = dataBuffer.slice(offset, offset + size)
     offset += size
     return slice
   }
 
+  // let slicer = new Slicer(dataBuffer)
+
   /*
     Retrieve PKG3 data from Header
    */
+  // let headerFields: any = {
+  //   magic: slicer.get(0x04),
+  //   rev: slicer.get(0x02),
+  //   type: buf2Int(slicer.get(0x02), 4),
+  //   mdOfs: buf2Int(slicer.get(0x04), 16),
+  //   mdCnt: buf2Int(slicer.get(0x04), 16),
+  //   hdrSize: slicer.get(0x04),
+  //   itemCnt: buf2Int(slicer.get(0x04), 16),
+  //   totalSize: slicer.get(0x08),
+  //   dataOfs: buf2Int(slicer.get(0x08), 16),
+  //   dataSize: buf2Int(slicer.get(0x08), 16),
+  //   contentId: slicer.get(0x24).toString(),
+  //   padding: slicer.get(0x0c),
+  //   digest: buf2hex(slicer.get(0x10)),
+  //   dataRiv: slicer.get(0x10),
+  //   keyType: dataBuffer[0xe7] & 7,
+  //   keyIndex: null,
+  //   mdSize: 0,
+  //   paramSfo: '',
+  //   aesCtr: {},
+  // }
   let headerFields: any = {
     magic: get(0x04),
     rev: get(0x02),
     type: buf2Int(get(0x02), 4),
-    metadataOffset: buf2Int(get(0x04), 16),
-    metadataCount: buf2Int(get(0x04), 16),
-    metadataSize: get(0x04),
-    itemCount: buf2Int(get(0x04), 16),
+    mdOfs: buf2Int(get(0x04), 16),
+    mdCnt: buf2Int(get(0x04), 16),
+    hdrSize: get(0x04),
+    itemCnt: buf2Int(get(0x04), 16),
     totalSize: get(0x08),
-    dataOffset: buf2Int(get(0x08), 16),
-    dataSize: get(0x08),
+    dataOfs: buf2Int(get(0x08), 16),
+    dataSize: buf2Int(get(0x08), 16),
     contentId: get(0x24).toString(),
     padding: get(0x0c),
-    digest: get(0x10),
+    digest: buf2hex(get(0x10)),
     dataRiv: get(0x10),
     keyType: dataBuffer[0xe7] & 7,
     keyIndex: null,
+    mdSize: 0,
     paramSfo: '',
     aesCtr: {},
   }
 
   // Retrieve PKG3 Unencrypted Data from input stream
-  const readSize = headerFields.dataOffset - CONST_PKG3_HEADER_SIZE
+  const readSize = headerFields.dataOfs - CONST_PKG3_HEADER_SIZE
 
-  // let unencryptedBytes = await reader.read(CONST_PKG3_HEADER_SIZE, readSize)
-  // const unencryptedBytes = Buffer.concat([dataBuffer, get(readSize, CONST_PKG3_HEADER_SIZE)])
-  // const unencryptedBytes = get(CONST_PKG3_HEADER_SIZE, readSize)
-  // const unencryptedBytes = Buffer.concat([dataBuffer, await reader.read(CONST_PKG3_HEADER_SIZE, readSize)])
-  dataBuffer = Buffer.concat([
-    dataBuffer,
-    await reader.read(CONST_PKG3_HEADER_SIZE, readSize),
-  ])
+  console.debug(
+    `Get PKG3 remaining unencrypted data with size ${readSize}/${
+      headerFields.dataOfs
+    }`
+  )
+
+  let unencryptedBytes = dataBuffer
+
+  try {
+    unencryptedBytes = Buffer.concat([
+      dataBuffer,
+      await reader.read(CONST_PKG3_HEADER_SIZE, readSize),
+    ])
+  } catch (e) {
+    reader.close()
+    throw new Error(
+      `Could not get PKG3 unencrypted data at offset ${CONST_PKG3_HEADER_SIZE} with size ${readSize} from ${reader.getSource()}`
+    )
+  }
 
   /*
     Retrieve PKG3 Extended Header data from Header
    */
+  let slicerExt = new Slicer(unencryptedBytes)
   let extHeaderFields = null
   const mainHdrSize = CONST_PKG3_HEADER_SIZE + CONST_PKG3_DIGEST_SIZE
 
   if (headerFields.type === 0x2) {
-    // if (parseInt(headerFields.type.toString('hex'), 4) === 0x2) {
-    // let arr = dataBuffer.slice(mainHdrSize, mainHdrSize + CONST_PKG3_HEADER_EXT_SIZE)
+    console.debug('>>>>> PKG3 Extended Main Header:')
 
-    const magic = get(0x04, mainHdrSize)
-    // const magic = unencryptedBytes.slice(mainHdrSize, mainHdrSize + 0x04)
+    const magic = slicerExt.get(0x04, mainHdrSize)
 
     if (magic.readInt32BE(0) !== CONST_PKG3_EXT_MAGIC) {
       reader.close()
@@ -1084,22 +1311,24 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
 
     extHeaderFields = {
       magic,
-      unknown1: get(0x04),
-      extHeaderSize: get(0x04),
-      extDataSize: get(0x04),
-      mainAndExtHeadersHmacOffset: get(0x04),
-      metadataHeaderHmacOffset: get(0x04),
-      tailOffset: get(0x08),
-      padding1: get(0x04),
-      pkgKeyId: buf2Int(get(0x04), 16),
-      fullHeaderHmacOffset: get(0x04),
-      padding2: get(0x02),
+      unknown1: slicerExt.get(0x04),
+      extHeaderSize: slicerExt.get(0x04),
+      extDataSize: slicerExt.get(0x04),
+      mainAndExtHeadersHmacOffset: slicerExt.get(0x04),
+      metadataHeaderHmacOffset: slicerExt.get(0x04),
+      tailOffset: slicerExt.get(0x08),
+      padding1: slicerExt.get(0x04),
+      pkgKeyId: buf2Int(slicerExt.get(0x04), 16),
+      fullHeaderHmacOffset: slicerExt.get(0x04),
+      padding2: slicerExt.get(0x02),
     }
   }
 
   /*
     Determine key index for item entries plus path of PARAM.SFO
    */
+  console.debug('>>>>> PKG3 Package Keys:')
+
   if (headerFields.type === 0x1) {
     // PS3
     headerFields.keyIndex = 0
@@ -1115,49 +1344,38 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
       } else if (headerFields.keyIndex === 3) {
         // Unknown
         console.error(`[UNKNOWN] PKG3 Key Index ${headerFields.type}`)
-        throw new Error(`[UNKNOWN] PKG3 Key Index ${headerFields.type}`)
       }
     } else {
       headerFields.keyIndex = 1
     }
   } else {
     console.error(`[UNKNOWN] PKG3 Package Type ${headerFields.type}`)
-    // throw new Error(`[UNKNOWN] PKG3 Package Type ${headerFields.type}`)
   }
 
   for (let key in CONST_PKG3_CONTENT_KEYS) {
-    // console.log('key: ' + CONST_PKG3_CONTENT_KEYS[key])
+    console.debug(
+      `Content Key #${key}: ${toHexString(CONST_PKG3_CONTENT_KEYS[key].key)}`
+    )
+
     if (CONST_PKG3_CONTENT_KEYS[key].derive) {
-      // console.log('has derive')
-
-      let aesEcb = new aesjs.ModeOfOperation.ecb(
-        CONST_PKG3_CONTENT_KEYS[key].key
+      let aesEcb = crypto.createCipheriv(
+        'aes-128-ecb',
+        CONST_PKG3_CONTENT_KEYS[key].key,
+        ''
       )
-
-      // let aes = new aesjs.ModeOfOperation.ctr(CONST_PKG3_CONTENT_KEYS[key].key)
-
-      let pkgKey = aesEcb.encrypt(headerFields.dataRiv)
+      let pkgKey = aesEcb.update(headerFields.dataRiv)
 
       headerFields.aesCtr[key] = new PkgAesCounter(
         pkgKey,
         headerFields.dataRiv
       )
-      //   aes: aesEcb,
-      //   pkgKey: aesjs.utils.hex.fromBytes(pkgKey),
-      //   setOffset: function(offset: number) {
-      //
-      //   },
-      //   decrypt: function(offset, data) {
-      //     return this.aes.utils.utf8.fromBytes(this.aes.decrypt(pkgKey))
-      //   }
-      // }
 
-      // aesjs.utils.hex.fromBytes(pkgKey)
+      console.debug(
+        `Derived Key #${key} from IV encrypted with Content Key: ${toHexString(
+          pkgKey
+        )}`
+      )
     } else {
-      // console.log("doesn't have derive")
-
-      // headerFields.aesCtr[key] = CONST_PKG3_CONTENT_KEYS[key]
-      // headerFields.aesCtr[key] = aesjs.utils.hex.fromBytes(CONST_PKG3_CONTENT_KEYS[key].key)
       headerFields.aesCtr[key] = new PkgAesCounter(
         CONST_PKG3_CONTENT_KEYS[key].key,
         headerFields.dataRiv
@@ -1168,28 +1386,32 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
   /*
     Extract fields from PKG3 Main Header Meta Data
     */
+  console.debug('>>>>> PKG3 Meta Data:')
+
   let metadata: any = {}
   let mdEntryType = -1
   let mdEntrySize = -1
-  let metaoffset = headerFields.metadataOffset
+  let mdOffset = headerFields.mdOfs
 
-  for (let i = 0; i < headerFields.metadataCount; i++) {
-    // let type = get(4);
-    // const type = unencryptedBytes.slice(metaoffset, metaoffset + 4)
-    // mdEntryType = unencryptedBytes.slice(metaoffset, metaoffset + 4).readInt32BE(0)
-    mdEntryType = dataBuffer.slice(metaoffset, metaoffset + 4).readInt32BE(0)
+  for (let i = 0; i < headerFields.mdCnt; i++) {
+    mdEntryType = unencryptedBytes.slice(mdOffset, mdOffset + 4).readInt32BE(0)
 
-    metaoffset += 4
+    mdOffset += 4
 
-    // let size = get(4)
-    // mdEntrySize = unencryptedBytes.slice(metaoffset, metaoffset + 4).readInt32BE(0)
-    mdEntrySize = dataBuffer.slice(metaoffset, metaoffset + 4).readInt32BE(0)
-    // const size = unencryptedBytes.slice(metaoffset, metaoffset + 4)
+    mdEntrySize = unencryptedBytes.slice(mdOffset, mdOffset + 4).readInt32BE(0)
 
-    metaoffset += 4
+    mdOffset += 4
 
-    let tempBytes = dataBuffer.slice(metaoffset, metaoffset + mdEntrySize)
-    // let tempBytes = unencryptedBytes.slice(metaoffset, metaoffset + mdEntrySize)
+    // let tempBytes = dataBuffer.slice(mdOffset, mdOffset + mdEntrySize)
+    let tempBytes = unencryptedBytes.slice(mdOffset, mdOffset + mdEntrySize)
+
+    console.debug(
+      `Metadata[${i}]: [0x${mdOffset
+        .toString(16)
+        .toUpperCase()}| ${mdEntrySize}] ID ${mdEntryType} = ${buf2hex(
+        tempBytes
+      )}`
+    )
 
     metadata[mdEntryType] = {}
 
@@ -1229,7 +1451,9 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
       }
       metadata[mdEntryType].ofs = tempBytes.readInt32BE(0)
       metadata[mdEntryType].size = tempBytes.readInt32BE(0x04)
-      metadata[mdEntryType].sha256 = tempBytes.slice(0x08, 0x08 + 0x20)
+      metadata[mdEntryType].sha256 = buf2hex(
+        tempBytes.slice(0x08, 0x08 + 0x20)
+      )
 
       if (mdEntrySize > 0x28) {
         metadata[mdEntryType].unknown = tempBytes.slice(0x28)
@@ -1268,7 +1492,9 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
           mdEntrySize - 0x20
         )
       }
-      metadata[mdEntryType].sha256 = tempBytes.slice(mdEntrySize - 0x20)
+      metadata[mdEntryType].sha256 = buf2hex(
+        tempBytes.slice(mdEntrySize - 0x20)
+      )
     } else {
       if (mdEntryType === 0x03) {
         metadata[mdEntryType].desc = 'Package Type/Flags'
@@ -1289,52 +1515,73 @@ async function parsePkg3Header(dataBuffer: Buffer, reader: PkgReader) {
 
     // PARAM.SFO offset and size element found
     // if (type.readInt32BE(0) === 0xE) { // 14
-    //   metadataFields.sfoOffset = unencryptedBytes.slice(metaoffset + 8, metaoffset + 12);
-    //   metadataFields.sfoSize = unencryptedBytes.slice(metaoffset + 12, metaoffset + 16)
+    //   metadataFields.sfoOffset = unencryptedBytes.slice(mdOffset + 8, mdOffset + 12);
+    //   metadataFields.sfoSize = unencryptedBytes.slice(mdOffset + 12, mdOffset + 16)
     // }
 
-    metaoffset += mdEntrySize
+    mdOffset += mdEntrySize
   }
 
-  headerFields.metadataSize = metaoffset - headerFields.metadataOffset
+  // headerFields.hdrSize = mdOffset - headerFields.mdOfs
+  headerFields.mdSize = mdOffset - headerFields.mdOfs
 
   return {
     pkgHeader: headerFields,
     pkgExtHeader: extHeaderFields,
     pkgMetadata: metadata,
-    headBytes: dataBuffer,
+    headBytes: unencryptedBytes,
   }
 }
 
 async function retrieveParamSfo(pkg, results, reader: PkgReader) {
+  console.debug('>>>>> PARAM.SFO (from unencrypted data):')
+  console.debug(
+    `Get PARAM.SFO from unencrypted data with offset ${toHexString(
+      results.pkgSfoOffset
+    )} with size ${results.pkgSfoSize}`
+  )
+
+  let sfoBytes: Uint8Array
   if (pkg.headBytes.length >= results.pkgSfoOffset + results.pkgSfoSize) {
-    return pkg.headBytes.slice(
+    console.debug('from head data')
+
+    sfoBytes = pkg.headBytes.slice(
       results.pkgSfoOffset,
       results.pkgSfoOffset + results.pkgSfoSize
     )
+  } else {
+    console.debug('from input stream')
+
+    try {
+      sfoBytes = await reader.read(results.pkgSfoOffset, results.pkgSfoSize)
+    } catch (e) {
+      reader.close()
+      throw new Error(
+        `Could not get PARAM.SFO at offset ${toHexString(
+          results.pkgSfoOffset
+        )} with size ${results.pkgSfoSize} from ${reader.getSource()}`
+      )
+    }
   }
 
-  try {
-    return await reader.read(results.pkgSfoOffset, results.pkgSfoSize)
-  } catch (e) {
-    reader.close()
-    throw new Error(
-      `Could not get PARAM.SFO at offset ${results.pkgSfoOffset} with size ${
-        results.pkgSfoSize
-        } from ${reader.getSource()}`
-    )
-  }
+  return sfoBytes
 }
 
 function checkSfoMagic(sfoMagic, reader: PkgReader) {
   if (buf2Int(sfoMagic, 16) !== CONST_PARAM_SFO_MAGIC) {
     reader.close()
-    throw new Error(`Not a known PARAM.SFO structure`)
+    throw new Error(
+      `Not a known PARAM.SFO structure (${toHexString(
+        sfoMagic
+      )} <> ${CONST_PARAM_SFO_MAGIC})`
+    )
   }
   return
 }
 
 async function parseSfo(sfoBytes: Buffer) {
+  console.debug('>>>>> SFO Header:')
+
   sfoBytes = Buffer.from(sfoBytes)
   let sfoKeyTableStart = sfoBytes.readInt32LE(0x08)
   let sfoDataTableStart = sfoBytes.readInt32LE(0x0c)
@@ -1347,8 +1594,6 @@ async function parseSfo(sfoBytes: Buffer) {
       sfoKeyTableStart + sfoBytes.readInt16LE(sfoIndexEntryOfs)
     let sfoIndexKey = ''
     let charArr = sfoBytes.slice(sfoIndexKeyOfs).toString()
-
-    // console.log(charArr)
 
     for (let j = 0; j < charArr.length; j++) {
       if (charArr.charAt(j) === '\u0000') {
@@ -1378,16 +1623,29 @@ async function parseSfo(sfoBytes: Buffer) {
       //
       // }
       value = sfoIndexData.toString()
+
+      if (
+        sfoIndexKeyName === 'STITLE' || sfoIndexKeyName.substring(0, 7) === 'STITLE_' || sfoIndexKeyName === 'TITLE' || (sfoIndexKeyName.substring(0, 6) === 'TITLE_' && sfoIndexKeyName !== 'TITLE_ID')
+      ) {
+        value = value.replace('\r\n', ' ').replace('\n\r', ' ')
+        value = value.replace('\0', '')
+        value = value.replace(/\s/u, ' ')
+      }
     } else if (sfoIndexDataFmt === 0x0404) {
       value = sfoIndexData.readInt32LE(0)
     }
 
     sfoValues[sfoIndexKeyName] = value
+
+    // offset += CONST_SFO_INDEX_ENTRY_SIZE
   }
   return sfoValues
 }
 
-function calculateAesAlignedOffsetAndSize(offset: number, size: number): AesAlign {
+function calculateAesAlignedOffsetAndSize(
+  offset: number,
+  size: number
+): AesAlign {
   let align: AesAlign | any = {}
   // Decrement AES block size (16)
   align.ofsDelta = offset & (0x10 - 1)
@@ -1404,12 +1662,14 @@ function calculateAesAlignedOffsetAndSize(offset: number, size: number): AesAlig
 }
 
 async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
+  console.debug('>>>>> PKG3 Body Items Info:')
+
   let itemsInfoBytes: any = {}
   itemsInfoBytes.ofs = 0
-  itemsInfoBytes.size = headerFields.itemCount * CONST_PKG3_ITEM_ENTRY_SIZE
+  itemsInfoBytes.size = headerFields.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE
   itemsInfoBytes.align = {}
   itemsInfoBytes.entriesSize =
-    headerFields.itemCount * CONST_PKG3_ITEM_ENTRY_SIZE
+    headerFields.itemCnt * CONST_PKG3_ITEM_ENTRY_SIZE
 
   if (metaData[0x0d]) {
     itemsInfoBytes.ofs = metaData[0x0d].ofs
@@ -1423,31 +1683,42 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     itemsInfoBytes.size
   )
 
+  console.debug(
+    `Get PKG3 Items Info/Item Entries from encrypted data with offset ${
+      itemsInfoBytes.ofs
+    } - ${itemsInfoBytes.align.ofsDelta} + ${
+      headerFields.dataOfs
+    } = ${headerFields.dataOfs + itemsInfoBytes.align.ofs} with count ${
+      headerFields.itemCnt
+    } and size ${itemsInfoBytes.size} + ${itemsInfoBytes.align.sizeDelta} = ${
+      itemsInfoBytes.align.size
+    }`
+  )
+
   if (itemsInfoBytes.align.ofsDelta > 0) {
     console.error(`Unaligned encrypted offset \
     ${itemsInfoBytes.ofs} - ${itemsInfoBytes.align.ofsDelta} = \
     ${itemsInfoBytes.align.ofs} (+ ${
-      headerFields.dataOffset
-      }) for Items Info/Items Entries.`)
+      headerFields.dataOfs
+    }) for Items Info/Items Entries.`)
   }
 
   itemsInfoBytes[CONST_DATATYPE_AS_IS] = []
   try {
     itemsInfoBytes[CONST_DATATYPE_AS_IS] = await reader.read(
-      headerFields.dataOffset + itemsInfoBytes.align.ofs,
+      headerFields.dataOfs + itemsInfoBytes.align.ofs,
       itemsInfoBytes.align.size
     )
-    // itemsInfoBytes[CONST_DATATYPE_AS_IS] = Buffer.concat([itemsInfoBytes[CONST_DATATYPE_AS_IS], await reader.read(headerFields.dataOffset + itemsInfoBytes.align.ofs, itemsInfoBytes.align.size)])
   } catch (e) {
     reader.close()
     throw new Error(`Could not get PKG3 encrypted data at \
-    offset ${headerFields.dataOffset + itemsInfoBytes.align.ofs} with \
+    offset ${headerFields.dataOfs + itemsInfoBytes.align.ofs} with \
     size ${itemsInfoBytes.align.size} from ${reader.getSource()}`)
   }
 
   // Decrypt PKG3 Item Entries
   itemsInfoBytes[CONST_DATATYPE_DECRYPTED] = headerFields.aesCtr[headerFields.keyIndex
-    ].decrypt(itemsInfoBytes.align.ofs, itemsInfoBytes[CONST_DATATYPE_AS_IS])
+].decrypt(itemsInfoBytes.align.ofs, itemsInfoBytes[CONST_DATATYPE_AS_IS])
 
   // Parse PKG3 Item Entries
   let pkgItemEntries = []
@@ -1457,7 +1728,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
   let itemNameSizeMax = 0
 
   let slicer: Slicer = new Slicer(itemsInfoBytes[CONST_DATATYPE_DECRYPTED])
-  for (let i = 0; i < headerFields.itemCount; i++) {
+  for (let i = 0; i < headerFields.itemCnt; i++) {
     let tempFields: PKG3ItemEntry = new PKG3ItemEntry({
       itemNameOfs: buf2Int(slicer.get(0x4), 16),
       itemNameSize: buf2Int(slicer.get(0x4), 16),
@@ -1466,15 +1737,13 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       flags: buf2Int(slicer.get(0x4), 16),
       padding1: buf2Int(slicer.get(0x4), 16),
       index: i,
-      // keyIndex: -1,
-      // align: calculateAesAlignedOffsetAndSize(tempFields.dataOfs, tempFields.dataSize)
     })
 
     if (tempFields.align.ofsDelta > 0) {
       console.error(
         `Unaligned encrypted offset ${tempFields.dataOfs} - ${
           tempFields.align.ofsDelta
-          } = ${tempFields.align.ofs} (+${headerFields.dataOffset})`
+        } = ${tempFields.align.ofs} (+${headerFields.dataOfs})`
       )
     }
 
@@ -1515,9 +1784,9 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     console.error(
       `Item Names with offset ${
         itemsInfoBytes.namesOfs
-        } are INTERLEAVED with the Item Entries of size ${
+      } are INTERLEAVED with the Item Entries of size ${
         itemsInfoBytes.entriesSize
-        }.`
+      }.`
     )
     console.error(
       'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1526,9 +1795,9 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     console.error(
       `Item Names with offset ${
         itemsInfoBytes.namesOfs
-        } are not directly following the Item Entries with size ${
+      } are not directly following the Item Entries with size ${
         itemsInfoBytes.entriesSize
-        }`
+      }`
     )
     console.error(
       'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1544,7 +1813,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       console.error(
         `Items Info size ${
           metaData[0x0d].size
-          } from meta data 0x0D is too small for complete Items Info (Entries+Names) with total size of ${readSize}`
+        } from meta data 0x0D is too small for complete Items Info (Entries+Names) with total size of ${readSize}`
       )
       console.error(
         'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1560,23 +1829,29 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     readSize =
       itemsInfoBytes.align.size - itemsInfoBytes[CONST_DATATYPE_AS_IS].length
 
+    console.debug(
+      `Get PKG3 remaining Items Info/Item Names data with size ${readSize}/${
+        itemsInfoBytes.align.size
+      } `
+    )
+
     try {
       itemsInfoBytes[CONST_DATATYPE_AS_IS] = Buffer.concat([
         Buffer.from(itemsInfoBytes[CONST_DATATYPE_AS_IS]),
-        await reader.read(headerFields.dataOffset + readOffset, readSize),
+        await reader.read(headerFields.dataOfs + readOffset, readSize),
       ])
     } catch (e) {
       reader.close()
       throw new Error(
-        `Could not get PKG3 encrypted data at offset ${headerFields.dataOffset +
-        readOffset} with size ${readSize} from ${reader.getSource()}`
+        `Could not get PKG3 encrypted data at offset ${headerFields.dataOfs +
+          readOffset} with size ${readSize} from ${reader.getSource()}`
       )
     }
 
     itemsInfoBytes[CONST_DATATYPE_DECRYPTED] = Buffer.concat([
       Buffer.from(itemsInfoBytes[CONST_DATATYPE_DECRYPTED]),
       itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(
-        itemsInfoBytes[CONST_DATATYPE_DECRYPTED.length]
+        itemsInfoBytes[CONST_DATATYPE_DECRYPTED].length
       ),
     ])
   } else {
@@ -1589,7 +1864,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
         console.error(
           `Determined aligned Items Info size ${align.size} <> ${
             metaData[0x0d].size
-            } from meta data 0x0D.`
+          } from meta data 0x0D.`
         )
         console.error(
           'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1613,7 +1888,7 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
       console.error(
         `Unaligned encrypted offset ${offset} - ${align.ofsDelta} = ${
           align.ofs
-          } (+ ${headerFields.dataOffset}) for ${itemEntry.index} item name.`
+        } (+ ${headerFields.dataOfs}) for ${itemEntry.index} item name.`
       )
       console.error(
         'Please report this issue at https://github.com/windsurfer1122/PSN_get_pkg_info'
@@ -1621,21 +1896,28 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
     }
 
     offset = align.ofs - itemsInfoBytes.align.ofs
-    // let enc = itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(offset, offset + align.size)
 
-    let tmp = itemsInfoBytes[CONST_DATATYPE_DECRYPTED].slice(
+    let enc = itemsInfoBytes[CONST_DATATYPE_AS_IS].slice(
+      offset,
+      offset + align.size
+    )
+    let dec = headerFields.aesCtr[keyIndex].decrypt(align.ofs, enc)
+    Buffer.from(dec).copy(itemsInfoBytes[CONST_DATATYPE_DECRYPTED], offset)
+
+    let tempBytes = itemsInfoBytes[CONST_DATATYPE_DECRYPTED].slice(
       offset + align.ofsDelta,
       offset + align.ofsDelta + itemEntry.itemNameSize
     )
-    itemsInfoBytes[CONST_DATATYPE_DECRYPTED].set(tmp, offset)
 
-    itemEntry.name = buf2Str(tmp)
+    itemEntry.name = buf2Str(tempBytes)
+
+    console.debug(`PKG3 Body Item Name: ${itemEntry.name}`)
   }
 
   let hasher = new Hash()
   hasher.update(itemsInfoBytes[CONST_DATATYPE_DECRYPTED])
 
-  itemsInfoBytes.sha256 = hasher.digest()
+  itemsInfoBytes.sha256 = buf2hex(hasher.digest())
 
   if (
     metaData[0x0d] &&
@@ -1651,13 +1933,24 @@ async function parsePkg3ItemsInfo(headerFields, metaData, reader: PkgReader) {
   }
 
   // Further analysys data
-  itemsInfoBytes.fileOfs = headerFields.dataOffset + itemsInfoBytes.ofs
+  itemsInfoBytes.fileOfs = headerFields.dataOfs + itemsInfoBytes.ofs
   itemsInfoBytes.fileOfsEnd = itemsInfoBytes.fileOfs + itemsInfoBytes.size
 
   return { itemsInfoBytes, pkgItemEntries }
 }
 
-async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, reader: PkgReader, itemData, size: any = null, extractions = null) {
+async function processPkg3Item(
+  extractionsFields,
+  itemEntry: PKG3ItemEntry,
+  reader: PkgReader,
+  itemData,
+  size: any = null,
+  extractions = null
+) {
+  console.debug(
+    `>>>>> PKG3 Body Item Entry #${itemEntry.index} ${itemEntry.name}:`
+  )
+
   // Prepare dictionaries
   let itemDataUsable = 0
   let addItemData = false
@@ -1694,9 +1987,16 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
     align = calculateAesAlignedOffsetAndSize(itemEntry.dataOfs, size)
   }
 
+  console.debug(
+    `Get PKG3 item data from encrypted data with offset ${
+      itemEntry.dataOfs
+    } - ${align.ofsDelta} + ${
+      extractionsFields.dataOfs
+    } = ${extractionsFields.dataOfs + align.ofs} and size ${size} + {} = {}{}`
+  )
+
   let dataOffset = align.ofs
-  // let fileOffset = extractionsFields.dataOffset
-  let fileOffset = extractionsFields.dataOffset + dataOffset
+  let fileOffset = extractionsFields.dataOfs + dataOffset
   let restSize = align.size
 
   let encryptedBytes = null
@@ -1730,8 +2030,8 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
       } catch (e) {
         reader.close()
         throw new Error(
-          `Could not get PKG3 encrypted data at offset ${extractionsFields.dataOffset +
-          align.ofs} with size ${align.size} from ${reader.getSource()}`
+          `Could not get PKG3 encrypted data at offset ${extractionsFields.dataOfs +
+            align.ofs} with size ${align.size} from ${reader.getSource()}`
         )
       }
 
@@ -1741,7 +2041,12 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
     }
 
     // Get and process decrypted block
-    if (itemEntry.keyIndex && extractionsFields.aesCtr) {
+    if (
+      itemEntry.hasOwnProperty('keyIndex') &&
+      extractionsFields.hasOwnProperty('aesCtr')
+    ) {
+      console.debug('inside decrypted')
+
       if (itemDataUsable > 0) {
         decryptedBytes = itemData[CONST_DATATYPE_DECRYPTED]
       } else {
@@ -1777,7 +2082,7 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
         }
 
         if (extract.aligned) {
-          // extract.itemBytesWritten += extract.request
+          // extract.itemBytesWritten += extract.request.write
           // todo: ln 2073
         } else {
           // extract.itemBytesWritten += extract.request.write
@@ -1807,7 +2112,11 @@ async function processPkg3Item(extractionsFields, itemEntry: PKG3ItemEntry, read
   return itemData
 }
 
-async function parsePbpHeader(headBytes: Buffer, fileSize: number, reader?: PkgReader) {
+async function parsePbpHeader(
+  headBytes: Buffer,
+  fileSize: number,
+  reader?: PkgReader
+) {
   // For definition see http://www.psdevwiki.com/ps3/Eboot.PBP
   // Extract fields from PBP header
   let slicer = new Slicer(headBytes)
@@ -1859,10 +2168,6 @@ async function parsePbpHeader(headBytes: Buffer, fileSize: number, reader?: PkgR
       dataOfs: pbpHeaderFields[key],
       isFileOfs: pbpHeaderFields[key],
     })
-    // itemEntry.
-    // itemEntry.structureDef
-    // itemEntry.dataOfs = pbpHeaderFields[key]
-    // itemEntry.isFileOfs = itemEntry.dataOfs
 
     if (lastItem) {
       itemEntries[lastItem].dataSize =
@@ -1938,7 +2243,7 @@ function getRegion(id: string) {
   }
 }
 
-function buf2hex(buffer: Buffer) {
+function buf2hex(buffer: Uint8Array) {
   let s = ''
   let h = '0123456789ABCDEF'
   new Uint8Array(buffer).forEach((v: number) => {
@@ -1962,32 +2267,43 @@ function buf2Str(bytes: ArrayBuffer) {
 function toHexString(byteArray: ArrayBuffer) {
   return Array.prototype.map
     .call(byteArray, function (byte) {
-      return ('0' + (byte & 0xff).toString(16)).slice(-2)
+      return ('0' + (byte & 0xff).toString(16)).toUpperCase().slice(-2)
     })
     .join('')
 }
 
-function toByteArray(hex: string) {
-  let result = []
-  while (hex.length >= 2) {
-    result.push(parseInt(hex.substring(0, 2), 16))
-    hex = hex.substring(2, hex.length)
+function humanFileSize(bytes, si = false) {
+  let thresh = si ? 1000 : 1024
+  if (Math.abs(bytes) < thresh) {
+    return `${bytes} B`
   }
-  return result
+  let units = si
+    ? ['kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB']
+    : ['KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+  let u = -1
+  do {
+    bytes /= thresh
+    ++u
+  } while (Math.abs(bytes) >= thresh && u < units.length - 1)
+  return `${bytes.toFixed(1)} ${units[u]}`
 }
 
-function humanFileSize(bytes, si = false) {
-  var thresh = si ? 1000 : 1024;
-  if(Math.abs(bytes) < thresh) {
-    return bytes + ' B';
+function splice(arr, starting, deleteCount, elements) {
+  if (arguments.length === 1) {
+    return arr
   }
-  var units = si
-    ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
-    : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
-  var u = -1;
-  do {
-    bytes /= thresh;
-    ++u;
-  } while(Math.abs(bytes) >= thresh && u < units.length - 1);
-  return bytes.toFixed(1)+' '+units[u];
+  starting = Math.max(starting, 0)
+  deleteCount = Math.max(deleteCount, 0)
+  elements = elements || []
+
+  const newSize = arr.length - deleteCount + elements.length
+  const splicedArray = new arr.constructor(newSize)
+
+  splicedArray.set(arr.subarray(0, starting))
+  splicedArray.set(elements, starting)
+  splicedArray.set(
+    arr.subarray(starting + deleteCount),
+    starting + elements.length
+  )
+  return splicedArray
 }
